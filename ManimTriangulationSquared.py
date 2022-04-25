@@ -5,23 +5,32 @@ import json
 config.max_files_cached = 256
 
 POLYGON = json.load(open("polygons.json"))
-KEY = 'large'
+KEY = 'sharp'
 POINTS = POLYGON[KEY]
 PRIMARY_COLOR = PURPLE_B
 TIME_SHORT = 0.5
 
+message_text = Text('.').shift(3 * DOWN)
+def UpdateMessage(self, message):
+    global message_text
+    self.play(Unwrite(message_text), run_time=TIME_SHORT)
+    message_text = Text(message).shift(3 * DOWN)
+    self.play(Write(message_text), run_time=TIME_SHORT)
+    self.wait()
 class Triangulation(Scene):
     def construct(self):
         primary_polygon = Polygon(*[x + [0]  for x in POINTS], color=PRIMARY_COLOR)
         self.add(primary_polygon)
         self.wait()
+        self.add(message_text)
         Triangulate(self, POINTS)
+        UpdateMessage(self, '.')
 
 def Triangulate(self, poly_points, depth=0):
     # Recursively find a diagonal to split the polygon into 2 sub-polygons
     # Base Case: If the polygon has 3 points, it is a triangle
     self.next_section()
-    if depth >= 6:
+    if depth >= 4:
         return
     if len(poly_points) <= 3:
         return
@@ -29,6 +38,8 @@ def Triangulate(self, poly_points, depth=0):
     selection.set_fill(PRIMARY_COLOR, opacity=0.3)
     self.play(FadeIn(selection))
     self.wait()
+    
+    UpdateMessage(self, f'Finding a diagonal at depth {depth}')
     # Find the diagonal to split the polygon
     i, j = FindDiagonal(self, poly_points)
     if i > j: # Sort to avoid symmetric case.
@@ -68,9 +79,11 @@ def FindDiagonal(self, poly_points):
     closest_intersection = list(np.add(b, bisecting_ray)) # Keep points in list form, not numpy array
 
     # Animate bisecting ray
+    UpdateMessage(self, f'Pick a point and bisect it\'s angle')
     bray_line = Line(b + [0], closest_intersection + [0])
     self.play(Create(bray_line))
 
+    UpdateMessage(self, 'Scan all edges for the closest intersection point')
     # Scan all edges for intersections with the bisecting ray.
     # Find closest intersection.
     k = None
@@ -110,6 +123,7 @@ def FindDiagonal(self, poly_points):
     #
     # Search LEFT partition
     #
+    UpdateMessage(self, 'Search left partition')
     selected_index = k - 1
     tri_points = [b, closest_intersection, poly_points[selected_index]]
     selected_triangle = Polygon(*[x + [0] for x in tri_points], color=YELLOW)
@@ -131,6 +145,7 @@ def FindDiagonal(self, poly_points):
 
     if selected_index != 1:
         # Found a diagonal!
+        UpdateMessage(self, 'Found a diagonal!')
         partition_line = Line(b + [0], poly_points[selected_index] + [0], color=BLUE)
         # Clean up plot
         self.play(FadeOut(dot_k), FadeOut(dot_km1), FadeOut(query_point_dot), FadeOut(intersection_dot), FadeOut(bray_line))
@@ -142,7 +157,8 @@ def FindDiagonal(self, poly_points):
 
     # No diagonal from b to left polygon
     # Turn min line red (invalid)
-    self.play(selected_triangle.animate.set_fill(RED, opacity=0.3), selected_triangle.animate.set_stroke(RED, width=2))
+    self.play(selected_triangle.animate.set_fill(RED, opacity=0.3), selected_triangle.animate.set_stroke(RED))
+    UpdateMessage(self, 'No Good!')
     self.play(FadeOut(selected_triangle))
     # Save to remove later
     old_query_point_dot = query_point_dot
@@ -150,6 +166,7 @@ def FindDiagonal(self, poly_points):
     #
     # Search RIGHT partition
     #
+    UpdateMessage(self, 'Search right partition')
     selected_index = k
     tri_points = [b, closest_intersection, poly_points[selected_index]]
     selected_triangle = Polygon(*[x + [0] for x in tri_points], color=YELLOW)
@@ -171,6 +188,7 @@ def FindDiagonal(self, poly_points):
 
     if selected_index != len(poly_points) - 1:
         # Found a valid diagonal (b -> point with minimum angle)
+        UpdateMessage(self, 'Found a diagonal!')
 
         # Clean up plot
         self.play(FadeOut(dot_k), FadeOut(dot_km1), FadeOut(bray_line), FadeOut(intersection_dot), FadeOut(query_point_dot), FadeOut(old_query_point_dot))
@@ -181,8 +199,8 @@ def FindDiagonal(self, poly_points):
 
         return 0, selected_index
     # Else unsuccessful search on the right side
-    self.play(selected_triangle.animate.set_fill(RED, opacity=0.3))
-    self.play(selected_triangle.animate.set_fill(RED, opacity=0.3), selected_triangle.animate.set_stroke(RED, width=2))
+    self.play(selected_triangle.animate.set_fill(RED, opacity=0.3), selected_triangle.animate.set_stroke(RED))
+    UpdateMessage(self, 'No Good!\nDiagonal exists between left and right partitions')
     self.play(FadeOut(selected_triangle))
     # Found a proper ear between left and right sides
     self.play(FadeOut(selected_triangle))
