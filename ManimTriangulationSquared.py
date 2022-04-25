@@ -5,42 +5,39 @@ import json
 config.max_files_cached = 256
 
 POLYGON = json.load(open("polygons.json"))
-key = 'sharp'
-POINTS = POLYGON[key]
-
+KEY = 'large'
+POINTS = POLYGON[KEY]
 PRIMARY_COLOR = PURPLE_B
-
 TIME_SHORT = 0.5
 
 class Triangulation(Scene):
     def construct(self):
-        manim_points = [x + [0]  for x in POINTS]
-        print(manim_points)
-        primary_polygon = Polygon(*manim_points, color=PRIMARY_COLOR)
-        primary_polygon.set_fill(PRIMARY_COLOR, opacity=0.05)
-
+        primary_polygon = Polygon(*[x + [0]  for x in POINTS], color=PRIMARY_COLOR)
         self.add(primary_polygon)
         self.wait()
-
         Triangulate(self, POINTS)
 
 def Triangulate(self, poly_points, depth=0):
-    # Highlight self as 'selected'
-    # color as a function of depth
+    # Recursively find a diagonal to split the polygon into 2 sub-polygons
+    # Base Case: If the polygon has 3 points, it is a triangle
+    self.next_section()
+    if depth >= 6:
+        return
     if len(poly_points) <= 3:
         return
-    selection = Polygon(*[x + [0] for x in poly_points], color=PURPLE_B)
-    selection.set_fill(PURPLE_B, opacity=0.3)
+    selection = Polygon(*[x + [0] for x in poly_points], color=GREEN)
+    selection.set_fill(PRIMARY_COLOR, opacity=0.3)
     self.play(FadeIn(selection))
     self.wait()
+    # Find the diagonal to split the polygon
     i, j = FindDiagonal(self, poly_points)
-
-    # Partition on diagonal
-    if i > j:
+    if i > j: # Sort to avoid symmetric case.
         i, j = j, i
+    # Partition on diagonal
     left = poly_points[i:j+1]
     right = poly_points[j:] + poly_points[:i+1]
-
+    # Recursively triangulate both sides
+    self.play(selection.animate.set_color(PRIMARY_COLOR))
     Triangulate(self, left, depth+1)
     Triangulate(self, right, depth+1)
 
@@ -58,27 +55,26 @@ def FindDiagonal(self, poly_points):
     # Bisect it's angle to create a ray
     v1 = np.subtract(a, b)
     v2 = np.subtract(c, b)
-    
     v1 /= np.linalg.norm(v1)
     v2 /= np.linalg.norm(v2)
 
     angle = CalculateAngle(v1, v2)
     bisecting_ray = v1 + v2
     bisecting_ray /= np.linalg.norm(bisecting_ray)
-    if angle > 0: # Orient the ray inward
+    if angle > 0: # Orient the ray inward, assumes (clockwise|counterclockwise[?]) polygon
         bisecting_ray *= -1
-    # Initialise bisecting ray to be sufficiently large
+    # Initialise bisecting ray to be sufficiently large (should be infinite, but doesn't matter)
     bisecting_ray *= 100
-    closest_intersection = list(np.add(b, bisecting_ray))
+    closest_intersection = list(np.add(b, bisecting_ray)) # Keep points in list form, not numpy array
 
+    # Animate bisecting ray
     bray_line = Line(b + [0], closest_intersection + [0])
     self.play(Create(bray_line))
 
     # Scan all edges for intersections with the bisecting ray.
     # Find closest intersection.
-    
     k = None
-    intersection_dot = None
+    intersection_dot = Dot(b + [0])
     for i in range(2, len(poly_points)):
         # Check if the edge intersects the bisecting ray
         edge = (poly_points[i], poly_points[i-1])
@@ -89,20 +85,12 @@ def FindDiagonal(self, poly_points):
         intersection = FindIntersection(edge, (b, closest_intersection))
         if intersection is not None:
             # Animate intersection finding
-            if intersection_dot is None:
-                # First intersection found
-                intersection_dot = Dot(intersection + [0], color=RED)
-                self.play(Create(intersection_dot))
-            else:
-                # Transition from old dot
-                new_dot = Dot(intersection + [0], color=RED)
-                self.play(Transform(intersection_dot, new_dot))
-            # Update bray
+            new_dot = Dot(intersection + [0], color=RED)
+            self.play(Transform(intersection_dot, new_dot))
+            # Update bray: transform bray_line to new length
             new_bray_line = Line(b + [0], intersection + [0])
-            # transform bray_line to new length
             self.play(Transform(bray_line, new_bray_line))
-            self.wait()
-            
+
             # Update calculation variables
             closest_intersection = intersection
             k = i
@@ -119,105 +107,89 @@ def FindDiagonal(self, poly_points):
     dot_km1 = Dot(poly_points[k-1] + [0], color=BLUE)
     self.play(FadeIn(dot_k), FadeIn(dot_km1))
 
-    # Find minimum angle on left side
-    minimum_angle = 2 * np.pi
-    minimum_index = None
-    query_line = None
-    min_line = None
-    for i, query_point in reversed(list(enumerate(poly_points[1:k]))):
-        # Animate query point selection
-        if query_line is None:
-            # Draw Query Line
-            query_line = Line(b + [0], query_point + [0], color=YELLOW)
-            self.play(Create(query_line))
-        else:
-            # Update query line
-            new_query_line = Line(b + [0], query_point + [0], color=YELLOW)
-            self.play(Transform(query_line, new_query_line))
-        
-        query_vec = np.subtract(query_point, b)
-        angle = abs(CalculateAngle(query_vec, bisecting_ray))
-        print(minimum_angle, angle)
-        if angle < minimum_angle:
-            minimum_angle = angle
-            minimum_index = i + 1
-            # Animate minimum angle selection
-            if min_line is None:
-                # Draw minimum line
-                min_line = Line(poly_points[0] + [0], poly_points[minimum_index] + [0], color=GREEN)
-                self.play(Create(min_line))
-            else:
-                # Update minimum line
-                new_min_line = Line(poly_points[0] + [0], poly_points[minimum_index] + [0], color=GREEN)
-                self.play(Transform(min_line, new_min_line))
+    #
+    # Search LEFT partition
+    #
+    selected_index = k - 1
+    tri_points = [b, closest_intersection, poly_points[selected_index]]
+    selected_triangle = Polygon(*[x + [0] for x in tri_points], color=YELLOW)
+    selected_triangle.set_fill(YELLOW, opacity=0.3)
+    self.play(FadeIn(selected_triangle))
+    query_point_dot = Dot(poly_points[selected_index] + [0], color=RED)
+    self.play(Create(query_point_dot))
+    for i, query_point in reversed(list(enumerate(poly_points[1:k-1]))):
+        # Animate query_point_selection
+        new_query_point_dot = Dot(query_point + [0], color=RED)
+        self.play(Transform(query_point_dot, new_query_point_dot))
+        if CheckTriangleContains(tri_points, query_point):
+            # Update selected triangle
+            selected_index = i + 1
+            tri_points = [b, closest_intersection, poly_points[selected_index]]
+            new_selected_triangle = Polygon(*[x + [0] for x in tri_points], color=YELLOW)
+            new_selected_triangle.set_fill(YELLOW, opacity=0.3)
+            self.play(Transform(selected_triangle, new_selected_triangle))
 
-    if minimum_index != 1:
+    if selected_index != 1:
         # Found a diagonal!
+        partition_line = Line(b + [0], poly_points[selected_index] + [0], color=BLUE)
         # Clean up plot
-        partition_line = Line(b + [0], poly_points[minimum_index] + [0], color=BLUE)
-        self.play(FadeOut(dot_k), FadeOut(dot_km1), FadeOut(query_line), FadeOut(bray_line), FadeOut(intersection_dot))
-        self.play(Transform(min_line, partition_line))
+        self.play(FadeOut(dot_k), FadeOut(dot_km1), FadeOut(query_point_dot), FadeOut(intersection_dot), FadeOut(bray_line))
+        # Show new partition line
+        self.play(Create(partition_line))
+        self.play(FadeOut(selected_triangle))
         self.wait()
-        # Found a valid diagonal (b -> point with minimum angle)
-        return 0, minimum_index
-    # Else unsucessful search on the left side
-    # scan right side next
+        return 0, selected_index
 
+    # No diagonal from b to left polygon
     # Turn min line red (invalid)
-    self.play(min_line.animate.set_color(RED))
-    self.play(Uncreate(min_line), Uncreate(query_line))
-
-    minimum_angle = 2 * np.pi
-    minimum_index = None
-    query_line = None
-    min_line = None
-    for i, query_point in enumerate(poly_points[k:]):
+    self.play(selected_triangle.animate.set_fill(RED, opacity=0.3), selected_triangle.animate.set_stroke(RED, width=2))
+    self.play(FadeOut(selected_triangle))
+    # Save to remove later
+    old_query_point_dot = query_point_dot
+    
+    #
+    # Search RIGHT partition
+    #
+    selected_index = k
+    tri_points = [b, closest_intersection, poly_points[selected_index]]
+    selected_triangle = Polygon(*[x + [0] for x in tri_points], color=YELLOW)
+    selected_triangle.set_fill(YELLOW, opacity=0.3)
+    self.play(FadeIn(selected_triangle))
+    query_point_dot = Dot(poly_points[selected_index] + [0], color=RED)
+    self.play(Create(query_point_dot))
+    for i, query_point in enumerate(poly_points[k+1:]):
         # Animate query point selection
-        if query_line is None:
-            # Draw Query Line
-            query_line = Line(b + [0], query_point + [0], color=YELLOW)
-            self.play(Create(query_line))
-        else:
-            # Update query line
-            new_query_line = Line(b + [0], query_point + [0], color=YELLOW)
-            self.play(Transform(query_line, new_query_line))
-        
-        query_vec = np.subtract(query_point, b)
-        angle = abs(CalculateAngle(query_vec, bisecting_ray))
-        if angle < minimum_angle:
-            minimum_angle = angle
-            minimum_index = i + k
+        new_query_point_dot = Dot(query_point + [0], color=RED)
+        self.play(Transform(query_point_dot, new_query_point_dot))
+        if CheckTriangleContains(tri_points, query_point):
+            # Update selected triangle
+            selected_index = i + k + 1
+            tri_points = [b, closest_intersection, poly_points[selected_index]]
+            new_selected_triangle = Polygon(*[x + [0] for x in tri_points], color=YELLOW)
+            new_selected_triangle.set_fill(YELLOW, opacity=0.3)
+            self.play(Transform(selected_triangle, new_selected_triangle))
 
-            # Animate minimum angle selection
-            if min_line is None:
-                # Draw minimum line
-                min_line = Line(b + [0], poly_points[minimum_index] + [0], color=GREEN)
-                self.play(Create(min_line))
-            else:
-                # Update minimum line
-                new_min_line = Line(b + [0], poly_points[minimum_index] + [0], color=GREEN)
-                self.play(Transform(min_line, new_min_line))
-
-    if minimum_index != len(poly_points) - 1:
+    if selected_index != len(poly_points) - 1:
         # Found a valid diagonal (b -> point with minimum angle)
 
         # Clean up plot
-        self.play(FadeOut(dot_k), FadeOut(dot_km1), FadeOut(query_line), FadeOut(bray_line), FadeOut(intersection_dot))
+        self.play(FadeOut(dot_k), FadeOut(dot_km1), FadeOut(bray_line), FadeOut(intersection_dot), FadeOut(query_point_dot), FadeOut(old_query_point_dot))
         # Add triangulation edge
-        partition_line = Line(b + [0], poly_points[minimum_index] + [0], color=BLUE)
-        self.play(Transform(min_line, partition_line))
+        partition_line = Line(b + [0], poly_points[selected_index] + [0], color=BLUE)
+        self.play(Create(partition_line))
+        self.play(FadeOut(selected_triangle))
 
-        return 0, minimum_index
-    # Else unsucessful search on the right side
+        return 0, selected_index
+    # Else unsuccessful search on the right side
+    self.play(selected_triangle.animate.set_fill(RED, opacity=0.3))
+    self.play(selected_triangle.animate.set_fill(RED, opacity=0.3), selected_triangle.animate.set_stroke(RED, width=2))
+    self.play(FadeOut(selected_triangle))
     # Found a proper ear between left and right sides
-    self.play(min_line.animate.set_color(RED))
-    self.play(Uncreate(min_line), Uncreate(query_line))
-
-
-
+    self.play(FadeOut(selected_triangle))
     partition_line = Line(a + [0], c + [0], color=BLUE)
-    self.play(FadeOut(dot_k), FadeOut(dot_km1), FadeOut(query_line), FadeOut(bray_line), FadeOut(intersection_dot))
+    self.play(FadeOut(dot_k), FadeOut(dot_km1), FadeOut(bray_line), FadeOut(intersection_dot))
     self.play(Create(partition_line))
+    self.play(FadeOut(query_point_dot), FadeOut(old_query_point_dot))
     return 1, len(poly_points) - 1
 
 
@@ -252,3 +224,14 @@ def FindIntersection(line1, line2):
         return [x1 + ua * (x2 - x1), y1 + ua * (y2 - y1)]
     else:
         return None
+
+def CheckTriangleContains(tri, point):
+    a, b, c = tri
+    i = CalculateAngle(np.subtract(b, a), np.subtract(point, a))
+    j = CalculateAngle(np.subtract(c, b), np.subtract(point, b))
+    k = CalculateAngle(np.subtract(a, c), np.subtract(point, c))
+    if i > 0 and j > 0 and k > 0:
+        return True
+    if i < 0 and j < 0 and k < 0:
+        return True
+    return False
