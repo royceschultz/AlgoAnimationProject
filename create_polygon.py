@@ -11,6 +11,7 @@ poly_points = []
 patch = None
 
 while True:
+    plt.title('Press enter to finish')
     pts = plt.ginput(1)
     print(pts)
     if pts:
@@ -26,13 +27,14 @@ while True:
         patch = polygon
         plt.gca().add_patch(polygon)
         plt.draw()
+plt.close()
 
 while True:
     save = input('Save? (y/n) ')
     if save == 'y':
         break
     elif save == 'n':
-        break
+        quit()
 
 key = input('Key: ')
 
