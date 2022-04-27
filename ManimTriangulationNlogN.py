@@ -11,17 +11,75 @@ KEY = 'large'
 POINTS = POLYGON[KEY]
 
 
-class Node:
-    def __init__(self, value, left=None, right=None):
-        self.value = value
+class SegmentNode:
+    def __init__(self, edge, left=None, right=None):
+        # Parameters:
+        # edge: a tuple of 2 points
+        self.edge = edge
         self.left = left
         self.right = right
 
+    def value(self, y):
+        # Return the x-coordinate of the segment at y
+        # y: a number
+        # return: a number
+        # This was written by an AI!!!
+        if y < self.edge[0][1]:
+            return self.edge[0][0]
+        elif y > self.edge[1][1]:
+            return self.edge[1][0]
+        else:
+            return self.edge[0][0] + (y - self.edge[0][1]) * (self.edge[1][0] - self.edge[0][0]) / (self.edge[1][1] - self.edge[0][1])
 
-class BST:
+
+class ScanlineBST:
     def __init__(self):
         self.root = None
+        self.y = None
 
+    def setY(self, y):
+        # Place the scanline at y
+        self.y = y
+
+    def insert(self, edge):
+        # Parameters:
+        # edge: a tuple of 2 points
+        # return: A reference to the node that was inserted
+        new_node = SegmentNode(edge)
+        if self.root is None:
+            self.root = new_node
+            return
+        head = self.root
+        while True:
+            if new_node.value(self.y) < head.value(self.y):
+                if head.left is None:
+                    head.left = new_node
+                    break
+                head = head.left
+            else:
+                if head.right is None:
+                    head.right = new_node
+                    break
+                head = head.right
+        return new_node
+
+    def find(self, value):
+        # Should this take an edge as input?
+        pass
+
+    def findLeftOf(self, value):
+        head = self.root
+        best_fit = None
+        while head is not None:
+            if head.value(self.y) <= value:
+                best_fit = head
+                head = head.right
+            else:
+                head = head.left
+        return best_fit
+
+    def delete(self, value):
+        pass
 
 def Triangulate(points):
     # nlog(n) Triangulation Method
@@ -35,12 +93,12 @@ def Triangulate(points):
         plt.plot(edge[:, 0], edge[:, 1], 'k-')
 
     # Sort points in order of x (or y)
-    # TODO: We can probably use arg sort instead.
-    sorted_points = np.argsort([x[0] for x in points])
-    segments = BST()
+    sorted_points = np.argsort([x[1] for x in points])[::-1] # descending order
+    segments = ScanlineBST()
     sub_polygons = []
     for i in sorted_points:
         point = points[i]
+        segments.setY(point[1])
         # what type of point is it?
         # Assume clockwise orientation
         # Scanline travels top to bottom
@@ -50,29 +108,47 @@ def Triangulate(points):
         c = 'm'
         if IsStartVertex(tri_points):
             # add edges to tree
+            # Notice, we only care about left edges, right edges face outside, where we don't need triangles
+            segments.insert((points[i-1], point))
+
             c = 'y' # DEBUG PLOT
         elif IsEndVertex(tri_points):
             # look at the vertex's edges
+            edge = segments.find((points[i-1], point))
             # if helper(edge) is a merge vertex:
-                # add a diagonal from v to helper(edge)
+            if IsMergeVertex(edge.helper):
+                # TODO: add a diagonal from v to helper(edge)
+                pass
             # remove edge from tree
+            segments.remove(edge)
             c = 'r' # DEBUG PLOT
         elif IsSplitVertex(tri_points):
             # find the edge to it's left
-            # add a diagonal from v to helper(edge)
+            edge = Segments.findLeftOf(point[0])
+            # TODO: add a diagonal from v to helper(edge)
             # set hepder(edge) to v
-            # add v's edges to the tree
+            edge.helper = point
+            # add v's edge to the tree
+            segments.insert((point, tri_points[1]))
             c = 'b'
         elif IsMergeVertex(tri_points):
             # look at the edge terminating at v
+            edge = Segments.find((point, tri_points[1]))
             # if helper(edge) is a merge vertex:
-                # add a diagonal from v to helper(edge)
+            if IsMergeVertex(edge.helper):
+                # TODO: add a diagonal from v to helper(edge)
+                pass
             # remove edge from tree
+            segments.remove(edge)
             # look at the edge to the left of v
+            edge = Segments.findLeftOf(point[0])
             # if helper(edge) is a merge vertex:
-                # add a diagonal from v to helper(edge)
+            if IsMergeVertex(edge.helper):
+                # TODO: add a diagonal from v to helper(edge)
+                pass
             # helper(edge) = v
-            c = 'g'
+            edge.helper = point
+            c = 'g' # DEBUG PLOT
         plt.plot(point[0], point[1], 'o', color=c)
     plt.show()
     
