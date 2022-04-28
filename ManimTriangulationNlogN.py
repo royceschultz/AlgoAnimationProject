@@ -65,7 +65,17 @@ class ScanlineBST:
 
     def find(self, value):
         # Should this take an edge as input?
-        pass
+        head = self.root
+        while head is not None:
+            if head.value(self.y) == value:
+                return head
+            else:
+                if head.value(self.y) < value:
+                    head = head.left
+                else:
+                    head = head.right
+        # Not found
+        return None
 
     def findLeftOf(self, value):
         head = self.root
@@ -79,7 +89,33 @@ class ScanlineBST:
         return best_fit
 
     def delete(self, value):
-        pass
+        head = self.root
+        parent = None
+        while head is not None:
+            if head.value(self.y) == value:
+                # Found the thing to delete
+                # Need to patch in the children
+                # and possibly the root
+                # TODO
+                to_delete = head
+                if head.left is None:
+                    # No left child, easy patch
+                    if head.right is None:
+                        # No children
+                        self.root = None
+                    else:
+                        # Right child only
+                        self.root = head.right
+                break
+            else:
+                parent = head
+                if head.value(self.y) < value:
+                    head = head.right
+                else:
+                    head = head.left
+        if head is None:
+            # Didn't find the node to delete
+            assert(False)
 
 def Triangulate(points):
     # nlog(n) Triangulation Method
