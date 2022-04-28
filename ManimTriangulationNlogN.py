@@ -9,12 +9,29 @@ from matplotlib import pyplot as plt
 POLYGON = json.load(open("polygons.json"))
 KEY = 'large'
 POINTS = POLYGON[KEY]
+SCENE = None
+
+# Manim Config
+config.max_files_cached = 512
+config.output_file = f'Triangulation_{KEY}.mp4'
+
+class ScanlineTriangulation(Scene):
+    def construct(self):
+        global SCENE
+        SCENE = self
+        primary_polygon = Polygon(*[x + [0]  for x in POINTS], color=PURPLE_B)
+        self.add(primary_polygon)
+        Triangulate(self, POINTS)
+        
 
 
 def AddDiagonal(points, i, j): # DEBUG PLOT
-    plt.plot([points[i][0], points[j][0]], [points[i][1], points[j][1]], 'c-')
+    # plt.plot([points[i][0], points[j][0]], [points[i][1], points[j][1]], 'c-')
+    diagonal_line = Line(points[i] + [0], points[j] + [0], color=BLUE)
+    global SCENE
+    SCENE.play(Create(diagonal_line))
 
-def Triangulate(points):
+def Triangulate(self, points):
     # O(nlog(n)) Triangulation Method
     # Parameters:
     #   points: list of points
@@ -22,27 +39,44 @@ def Triangulate(points):
     # Assume clockwise orientation
     # Scanline travels top to bottom
 
+    # Manim Object
+    ScanLineLine = lambda y: Line([-10, y, 0], [10, y, 0], color=RED)
+    scanline = ScanLineLine(10)
+    scanline_point = Dot([-10, 10, 0], color=RED)
+
+    # Init scene
+    self.add(scanline)
+    self.add(scanline_point)
+
     # DEBUG PLOT
-    for i in range(len(points)):
-        edge = np.array([points[i-1], points[i]])
-        plt.plot(edge[:, 0], edge[:, 1], 'k-')
+    # for i in range(len(points)):
+    #     edge = np.array([points[i-1], points[i]])
+    #     plt.plot(edge[:, 0], edge[:, 1], 'k-')
 
     # Sort by y
     # TODO: Resolve tie breakers in a better way
     sorted_points = np.argsort([x[1] - (0.001 * x[0]) for x in points])[::-1] # descending order
-    segments = ScanlineBST()
+    segments = ScanlineBST(self)
     for idx in sorted_points:
         prev_point, point, next_point = points[idx-1], points[idx], points[(idx+1) % len(points)]
         segments.setY(point[1])
+        self.play(
+            Transform(scanline, ScanLineLine(point[1])),
+            Transform(scanline_point, Dot(point + [0], color=RED)),
+        )
         # what type of point is it?
         c = 'm' # DEBUG PLOT
+        VertexDot = lambda c: Dot(point + [0], color=c)
+        AddVertexDot = lambda c: self.play(Create(VertexDot(c)))
         if IsStartVertex(points, idx): # Angle like: /*\
             # add left edge to tree. We dont care about the right edge. It faces out.
+            AddVertexDot(YELLOW)
             node = segments.insert((point, prev_point)) # must point edge downwards
             node.helper = idx
             c = 'y' # DEBUG PLOT
         elif IsEndVertex(points, idx): # Angle like: \*/
             # look at the vertex's edges
+            AddVertexDot(RED)
             edge = segments.find(point)
             if IsMergeVertex(points, edge.helper):
                 AddDiagonal(points, idx, edge.helper)
@@ -50,6 +84,7 @@ def Triangulate(points):
             c = 'r' # DEBUG PLOT
         elif IsSplitVertex(points, idx): # Angle like: */\*
             # find the edge to it's left
+            AddVertexDot(BLUE)
             edge = segments.findLeftOf(point)
             if edge.helper: # TODO: Why would it be None?
                 AddDiagonal(points, idx, edge.helper) # Found a diagonal!
@@ -58,6 +93,7 @@ def Triangulate(points):
             c = 'b'
         elif IsMergeVertex(points, idx): # Angle like: *\/*
             # look at the edge terminating at v
+            AddVertexDot(GREEN)
             edge = segments.find(point)
             if IsMergeVertex(points, edge.helper):
                 AddDiagonal(points, idx, edge.helper) # Found a diagonal!
@@ -73,7 +109,7 @@ def Triangulate(points):
             if edge_node is not None: # TODO: Is there a better condition to use?
                 # DEBUG PLOT
                 edge = edge_node.edge
-                plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], 'm-')
+                # plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], 'm-')
                 if IsMergeVertex(points, edge_node.helper):
                     AddDiagonal(points, idx, edge_node.helper) # Found a diagonal!
                 segments.delete(edge_node)
@@ -85,12 +121,12 @@ def Triangulate(points):
                 if IsMergeVertex(points, edge.helper):
                     AddDiagonal(points, idx, edge.helper) # Found a diagonal!
                 edge.helper = idx
-        # DEBUG PLOT
-        plt.plot(point[0], point[1], 'o', color=c)
-        plt.show(block=False)
-        plt.pause(0.1)
-        x = input('press enter to continue')
-    plt.show() # DEBUG PLOT
+        # # DEBUG PLOT
+        # plt.plot(point[0], point[1], 'o', color=c)
+        # plt.show(block=False)
+        # plt.pause(0.1)
+        # x = input('press enter to continue')
+    # plt.show() # DEBUG PLOT
     
     # TODO: Triangulate monotone subpolygons
 
@@ -190,6 +226,7 @@ class SegmentNode:
         self.left = left
         self.right = right
         self.helper = helper
+        self.mobject = None
 
     def value(self, y):
         # Return the x-coordinate of the segment at a given y
@@ -221,9 +258,12 @@ class ScanlineBST:
     # TODO: This tree has no balancing constraints.
     # Operations may run in O(n) time!
 
-    def __init__(self):
+    def __init__(self, scene):
+        # Parameters:
+        #   scene: a Manim Scene object
         self.root = None
         self.y = None
+        self.scene = scene
 
     def __repr__(self):
         if self.root is None:
@@ -246,6 +286,11 @@ class ScanlineBST:
         plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], 'r-')
 
         new_node = SegmentNode(edge)
+        # Animate node addition
+        edge_line = Line(edge[0] + [0], edge[1] + [0], color=YELLOW, stroke_width=5)
+        self.scene.play(Create(edge_line))
+        new_node.mobject = edge_line
+
         if self.root is None: # Empty tree
             self.root = new_node
             return new_node
@@ -296,6 +341,10 @@ class ScanlineBST:
                 head = head.right
             else:
                 head = head.left
+        endpoint = [best_fit.value(y), y]
+        query_line = Line(point + [0], endpoint + [0], color=GRAY, stroke_width=5)
+        self.scene.play(Create(query_line))
+        self.scene.play(Uncreate(query_line))
         return best_fit
 
     def delete(self, value):
@@ -341,6 +390,10 @@ class ScanlineBST:
                         parent.left = left_child
                     else: # head is right child
                         parent.right = left_child
+                if head.mobject:
+                    self.scene.play(Uncreate(head.mobject))
+                else:
+                    print('No mobject')
                 return
         assert head is not None # Nothing to delete
 
