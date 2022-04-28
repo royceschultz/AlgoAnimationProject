@@ -243,13 +243,17 @@ def Triangulate(points):
                 # DEBUG PLOT
                 edge = edge_node.edge
                 plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], 'm-')
+                if IsMergeVertex(points, edge_node.helper):
+                    AddDiagonal(points, idx, edge_node.helper)
                 segments.delete(edge_node)
                 node = segments.insert((point, prev_point))
                 node.helper = idx
                 c = 'c'
             else:
-                left_edge = segments.findLeftOf(point[0])
-                left_edge.helper = idx
+                edge = segments.findLeftOf(point[0])
+                if IsMergeVertex(points, edge.helper):
+                    AddDiagonal(points, idx, edge.helper)
+                edge.helper = idx
         plt.plot(point[0], point[1], 'o', color=c)
         plt.show(block=False)
         plt.pause(0.1)
