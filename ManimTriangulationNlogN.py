@@ -12,18 +12,22 @@ POINTS = POLYGON[KEY]
 
 
 class SegmentNode:
-    def __init__(self, edge, left=None, right=None):
+    def __init__(self, edge, left=None, right=None, helper=None):
         # Parameters:
-        # edge: a tuple of 2 points
+        #   edge: a tuple of 2 points
+        #   left: a SegmentNode
+        #   right: a SegmentNode
+        #   helper: INT, An index
         self.edge = edge
         self.left = left
         self.right = right
-        self.helper = None
+        self.helper = helper
 
     def value(self, y):
-        # Return the x-coordinate of the segment at y
+        # Return the x-coordinate of the segment at a given y
         # y: a number
         # return: a number
+        # This function was written by an AI!
         if y >= self.edge[0][1]:
             return self.edge[0][0]
         elif y <= self.edge[1][1]:
@@ -32,6 +36,7 @@ class SegmentNode:
             return self.edge[0][0] + (self.edge[1][0] - self.edge[0][0]) * (y - self.edge[0][1]) / (self.edge[1][1] - self.edge[0][1])
 
     def InOrder(self):
+        # Return a list of all SegmentNodes in order
         left, right = [], []
         if self.left is not None:
             left = self.left.InOrder()
@@ -41,6 +46,13 @@ class SegmentNode:
 
 
 class ScanlineBST:
+    # A ScanlineBST is a binary search tree of SegmentNodes.
+    # Each node has an edge composed of 2 points.
+    # Nodes are sorted by x coodinate AT A GIVEN Y - the scanline.
+
+    # TODO: This tree has no balancing constraints.
+    # Operations may run in O(n) time!
+
     def __init__(self):
         self.root = None
         self.y = None
@@ -52,37 +64,43 @@ class ScanlineBST:
 
     def setY(self, y):
         # Place the scanline at y
+        # TODO: deprecate this.
         self.y = y
 
     def insert(self, edge):
         # Parameters:
-        # edge: a tuple of 2 points
-        # return: A reference to the node that was inserted
+        #   edge: a tuple of 2 points
+        # Return a reference to the node that was inserted
         # Assume edges always point down.
+        assert(edge[0][1] > edge[1][1])
 
         # DEBUG PLOT
         plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], 'r-')
 
         new_node = SegmentNode(edge)
-        if self.root is None:
+        if self.root is None: # Empty tree
             self.root = new_node
             return new_node
+        # Find the node to insert after
         head = self.root
         while True:
             if edge[0][0] < head.value(edge[0][1]):
                 if head.left is None:
-                    head.left = new_node
+                    head.left = new_node # Insert here
                     break
                 head = head.left
             else:
                 if head.right is None:
-                    head.right = new_node
+                    head.right = new_node # or insert here
                     break
                 head = head.right
         return new_node
 
     def find(self, point):
-        # Should this take an edge as input?
+        # Parameters:
+        #   point: (x, y) coordinates
+        # Returns a SegmentNode if the point lies on it's edge
+        # TODO: This is an imprecise way to address nodes.
         x, y = point
         head = self.root
         while head is not None:
@@ -97,6 +115,11 @@ class ScanlineBST:
         return None
 
     def findLeftOf(self, value):
+        # Parameters:
+        #   value: a number
+        # Returns the SegmentNode that is the left of value at the set scanline
+        # TODO: Allow search by point
+        # TODO: [low priority] Is there an easy way to ignore edges landing on this point?
         head = self.root
         best_fit = None
         while head is not None:
@@ -108,70 +131,61 @@ class ScanlineBST:
         return best_fit
 
     def delete(self, value):
-        if type(value) == SegmentNode:
+        # Parameters:
+        #   value: a number OR a SegmentNode
+        if type(value) == SegmentNode: # Get node value
             value = value.value(self.y)
         head = self.root
         parent = None
-        while head is not None:
-            if head.value(self.y) == value:
-                # Found the thing to delete
-                # Need to patch in the children
-                # and possibly the root
-                # TODO
-                to_delete = head
-                if head.left is None:
-                    # No left child, easy patch
-                    if parent is None:
-                        self.root = head.right
-                        return
-                    if parent.left == head:
-                        parent.left = head.right
-                        return
-                    else:
-                        parent.right = head.right
-                        return
-                else:
-                    # Left child, need to find the rightmost node
-                    # of the left child
-                    left_child = head.left
-                    left_child_parent = head
-                    while left_child.right is not None:
-                        left_child_parent = left_child
-                        left_child = left_child.right
-                    # Now left_child is the rightmost node of the left child
-                    # We can patch in the left child
-                    left_child.right = head.right
-                    if left_child_parent != head:
-                        left_child.left = head.left
-                        left_child_parent.right = None
-                    if parent is None:
-                        self.root = left_child
-                        return
-                    if parent.left == head:
-                        parent.left = left_child
-                        return
-                    else:
-                        parent.right = left_child
-                        return
-                break
-            else:
+        while head is not None: # Find the node to delete
+            if not head.value(self.y) == value: # Not found
+                # Traverse deeper in the tree
                 parent = head
                 if head.value(self.y) < value:
                     head = head.right
                 else:
                     head = head.left
-        if head is None:
-            # Didn't find the node to delete
-            assert(False)
+            else: # Found it!
+                # Patch the children and possibly the root
+                if head.left is None: # No left child, easy patch!
+                    if parent is None: # head is root
+                        self.root = head.right
+                    elif parent.left == head: # head is left child
+                        parent.left = head.right
+                    else: # head is right child
+                        parent.right = head.right
+                else: # Left child exists
+                    # Goal: Replace head with the max of head's left subtree
+                    left_child = head.left
+                    left_child_parent = head
+                    while left_child.right is not None:
+                        left_child_parent = left_child
+                        left_child = left_child.right
+                    # Now left_child is the rightmost node (maximum) of the left-subtree
+                    # Patch in the left child
+                    left_child.right = head.right
+                    if left_child_parent != head:
+                        left_child.left = head.left
+                        left_child_parent.right = None
+                    if parent is None: # head is root
+                        self.root = left_child # Now left_child is the new root
+                    elif parent.left == head: # head is left child
+                        parent.left = left_child
+                    else: # head is right child
+                        parent.right = left_child
+                return
+        assert head is not None # Nothing to delete
 
-def AddDiagonal(points, i, j):
+def AddDiagonal(points, i, j): # DEBUG PLOT
     plt.plot([points[i][0], points[j][0]], [points[i][1], points[j][1]], 'c-')
 
 def Triangulate(points):
-    # nlog(n) Triangulation Method
-    # points: list of points
-    # return: list of triangles
-    # TODO: Implement this method
+    # O(nlog(n)) Triangulation Method
+    # Parameters:
+    #   points: list of points
+    # Return: list of triangles
+    # Assume clockwise orientation
+    # Scanline travels top to bottom
 
     # DEBUG PLOT
     for i in range(len(points)):
@@ -182,16 +196,10 @@ def Triangulate(points):
     # TODO: Resolve tie breakers in a better way
     sorted_points = np.argsort([x[1] - (0.001 * x[0]) for x in points])[::-1] # descending order
     segments = ScanlineBST()
-    sub_polygons = []
-    diagonals = []
     for idx in sorted_points:
         prev_point, point, next_point = points[idx-1], points[idx], points[(idx+1) % len(points)]
-
         segments.setY(point[1])
         # what type of point is it?
-        # Assume clockwise orientation
-        # Scanline travels top to bottom
-
         c = 'm' # DEBUG PLOT
         if IsStartVertex(points, idx): # Angle like: /*\
             # add left edge to tree. We dont care about the right edge. It faces out.
@@ -199,70 +207,59 @@ def Triangulate(points):
             node.helper = idx
             c = 'y' # DEBUG PLOT
         elif IsEndVertex(points, idx): # Angle like: \*/
-            # # look at the vertex's edges
+            # look at the vertex's edges
             edge = segments.find(point)
-            # if helper(edge) is a merge vertex:
             if IsMergeVertex(points, edge.helper):
-                # add a diagonal from v to helper(edge))
                 AddDiagonal(points, idx, edge.helper)
-                pass
-            # remove edge from tree
-            segments.delete(edge)
+            segments.delete(edge) # remove edge from tree
             c = 'r' # DEBUG PLOT
         elif IsSplitVertex(points, idx): # Angle like: */\*
             # find the edge to it's left
             edge = segments.findLeftOf(point[0])
-            # add a diagonal from v to helper(edge)
-            if edge.helper:
-                AddDiagonal(points, idx, edge.helper)
-            # set hepder(edge) to v
+            if edge.helper: # TODO: Why would it be None?
+                AddDiagonal(points, idx, edge.helper) # Found a diagonal!
             edge.helper = idx
-            # add v's edge to the tree
             segments.insert((point, prev_point)) # must point edge downwards
             c = 'b'
         elif IsMergeVertex(points, idx): # Angle like: *\/*
-            # # look at the edge terminating at v
+            # look at the edge terminating at v
             edge = segments.find(point)
-            # if helper(edge) is a merge vertex:
             if IsMergeVertex(points, edge.helper):
-                # add a diagonal from v to helper(edge)
-                AddDiagonal(points, idx, edge.helper)
-            # delete edge from tree
+                AddDiagonal(points, idx, edge.helper) # Found a diagonal!
             segments.delete(edge)
             # look at the edge to the left of v
             edge = segments.findLeftOf(point[0])
-            # if helper(edge) is a merge vertex:
             if IsMergeVertex(points, edge.helper):
-                # Add a diagonal from v to helper(edge)
-                AddDiagonal(points, idx, edge.helper)
-            edge.helper = idx
+                AddDiagonal(points, idx, edge.helper) # Found a diagonal!
+            edge.helper = idx # update helper
             c = 'g' # DEBUG PLOT
         else: # Interior point
             edge_node = segments.find(point)
-            if edge_node is not None:
+            if edge_node is not None: # TODO: Is there a better condition to use?
                 # DEBUG PLOT
                 edge = edge_node.edge
                 plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], 'm-')
                 if IsMergeVertex(points, edge_node.helper):
-                    AddDiagonal(points, idx, edge_node.helper)
+                    AddDiagonal(points, idx, edge_node.helper) # Found a diagonal!
                 segments.delete(edge_node)
                 node = segments.insert((point, prev_point))
                 node.helper = idx
-                c = 'c'
+                c = 'c' # DEBUG PLOT
             else:
                 edge = segments.findLeftOf(point[0])
                 if IsMergeVertex(points, edge.helper):
-                    AddDiagonal(points, idx, edge.helper)
+                    AddDiagonal(points, idx, edge.helper) # Found a diagonal!
                 edge.helper = idx
+        # DEBUG PLOT
         plt.plot(point[0], point[1], 'o', color=c)
         plt.show(block=False)
         plt.pause(0.1)
         x = input('press enter to continue')
-    plt.show()
+    plt.show() # DEBUG PLOT
     
-    for polygon in sub_polygons:
-        pass
-        # Monotone triangulate
+    # TODO: Triangulate monotone subpolygons
+
+    return
 
 def MonotoneTriangulate(points):
     # Check points are monotone
@@ -291,12 +288,8 @@ def MonotoneTriangulate(points):
 # Helpers
 #
 def InteriorAngle(a, b):
-    # v1, v2: vectors
-    # return: angle in degrees
-    # Define Interior:
-    # Assume clockwise orientation
-    # v1 points backwards, v2 points forwards
-    # left of v1 and right of v2 is interior.
+    # Parameters: a, b: Vectors
+    # Return: Angle in degrees from a to b in clockwise direction
     angle = np.arctan2(a[1], a[0]) - np.arctan2(b[1], b[0])
     if angle > 2 * np.pi:
         angle -= 2 * np.pi
@@ -305,14 +298,17 @@ def InteriorAngle(a, b):
     return angle
 
 def EdgesAtPoint(points, i):
+    # Parameters:
+    #   points: list of points of a polygon
+    #   i: index of a point
     # return: 2 vectors representing point -> previous_point, point -> next_point
     a, b, c = points[i-1], points[i], points[(i+1) % len(points)]
     return np.subtract(a, b), np.subtract(c, b)
 
 def IsStartVertex(points, i):
     # Parameters:
-    # points: list of points
-    # i: index of point to check
+    #   points: list of points of a polygon
+    #   i: index of point to check
     # Assumes clockwise orientation
     if i is None: return False
     v1, v2 = EdgesAtPoint(points, i)
