@@ -114,16 +114,16 @@ class ScanlineBST:
         # Not found
         return None
 
-    def findLeftOf(self, value):
+    def findLeftOf(self, point):
         # Parameters:
-        #   value: a number
-        # Returns the SegmentNode that is the left of value at the set scanline
-        # TODO: Allow search by point
+        #   point: (x, y) coordinates
+        # Returns the SegmentNode that is the left of the point
         # TODO: [low priority] Is there an easy way to ignore edges landing on this point?
+        x, y = point
         head = self.root
         best_fit = None
         while head is not None:
-            if head.value(self.y) <= value:
+            if head.value(y) <= x:
                 best_fit = head
                 head = head.right
             else:
@@ -215,7 +215,7 @@ def Triangulate(points):
             c = 'r' # DEBUG PLOT
         elif IsSplitVertex(points, idx): # Angle like: */\*
             # find the edge to it's left
-            edge = segments.findLeftOf(point[0])
+            edge = segments.findLeftOf(point)
             if edge.helper: # TODO: Why would it be None?
                 AddDiagonal(points, idx, edge.helper) # Found a diagonal!
             edge.helper = idx
@@ -228,7 +228,7 @@ def Triangulate(points):
                 AddDiagonal(points, idx, edge.helper) # Found a diagonal!
             segments.delete(edge)
             # look at the edge to the left of v
-            edge = segments.findLeftOf(point[0])
+            edge = segments.findLeftOf(point)
             if IsMergeVertex(points, edge.helper):
                 AddDiagonal(points, idx, edge.helper) # Found a diagonal!
             edge.helper = idx # update helper
@@ -246,7 +246,7 @@ def Triangulate(points):
                 node.helper = idx
                 c = 'c' # DEBUG PLOT
             else:
-                edge = segments.findLeftOf(point[0])
+                edge = segments.findLeftOf(point)
                 if IsMergeVertex(points, edge.helper):
                     AddDiagonal(points, idx, edge.helper) # Found a diagonal!
                 edge.helper = idx
@@ -313,8 +313,7 @@ def IsStartVertex(points, i):
     if i is None: return False
     v1, v2 = EdgesAtPoint(points, i)
     if v1[1] < 0 and v2[1] <= 0: # both edges point down
-        angle = InteriorAngle(v2, v1)
-        if angle < np.pi: # angle < 180 degrees
+        if InteriorAngle(v2, v1) < np.pi: # angle < 180 degrees
             return True
     return False
 
@@ -322,8 +321,7 @@ def IsEndVertex(points, i):
     if i is None: return False
     v1, v2 = EdgesAtPoint(points, i)
     if v1[1] > 0 and v2[1] > 0: # both edges point up
-        angle = InteriorAngle(v2, v1)
-        if angle < np.pi: # angle is < 180 degrees
+        if InteriorAngle(v2, v1) < np.pi: # angle is < 180 degrees
             return True
     return False
 
@@ -331,8 +329,7 @@ def IsSplitVertex(points, i):
     if i is None: return False
     v1, v2 = EdgesAtPoint(points, i)
     if v1[1] < 0 and v2[1] <= 0: # both edges point down
-        angle = InteriorAngle(v2, v1)
-        if angle > np.pi: # angle is > 180 degrees
+        if InteriorAngle(v2, v1) > np.pi: # angle is > 180 degrees
             return True
     return False
 
@@ -340,8 +337,7 @@ def IsMergeVertex(points, i):
     if i is None: return False
     v1, v2 = EdgesAtPoint(points, i)
     if v1[1] > 0 and v2[1] > 0: # both edges point up
-        angle = InteriorAngle(v2, v1)
-        if angle > np.pi: # angle > 180
+        if InteriorAngle(v2, v1) > np.pi: # angle > 180
             return True
     return False
 
