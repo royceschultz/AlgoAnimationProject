@@ -142,23 +142,22 @@ def Triangulate(points):
         # if start vertex:
         tri_points = [points[i-1], point, points[(i+1) % len(points)]]
         c = 'm'
-        if IsStartVertex(tri_points):
+        if IsStartVertex(points, i): # Angle like: /*\
             # add edges to tree
             # Notice, we only care about left edges, right edges face outside, where we don't need triangles
             segments.insert((points[i-1], point))
-
             c = 'y' # DEBUG PLOT
-        elif IsEndVertex(tri_points):
+        elif IsEndVertex(tri_points): # Angle like: \*/
             # look at the vertex's edges
-            edge = segments.find((points[i-1], point))
+            edge = segments.find(point[0])
             # if helper(edge) is a merge vertex:
             if IsMergeVertex(edge.helper):
-                # TODO: add a diagonal from v to helper(edge)
+                # TODO: add a diagonal from v to helper(edge))
                 pass
             # remove edge from tree
             segments.remove(edge)
             c = 'r' # DEBUG PLOT
-        elif IsSplitVertex(tri_points):
+        elif IsSplitVertex(tri_points): # Angle like: */\*
             # find the edge to it's left
             edge = Segments.findLeftOf(point[0])
             # TODO: add a diagonal from v to helper(edge)
@@ -167,7 +166,7 @@ def Triangulate(points):
             # add v's edge to the tree
             segments.insert((point, tri_points[1]))
             c = 'b'
-        elif IsMergeVertex(tri_points):
+        elif IsMergeVertex(tri_points): # Angle like: *\/*
             # look at the edge terminating at v
             edge = Segments.find((point, tri_points[1]))
             # if helper(edge) is a merge vertex:
@@ -232,58 +231,50 @@ def InteriorAngle(a, b):
         angle += 2 * np.pi
     return angle
 
-def IsStartVertex(tri_points):
+def EdgesAtPoint(points, i):
+    # return: 2 vectors representing point -> previous_point, point -> next_point
+    a, b, c = points[i-1], points[i], points[(i+1) % len(points)]
+    return np.subtract(a, b), np.subtract(c, b)
+
+def IsStartVertex(points, i):
     # Parameters:
-    # tri_points: list of 3 points, query vertex is tri_points[1]
+    # points: list of points
+    # i: index of point to check
     # Assumes clockwise orientation
-    a, b, c = tri_points
-    v1 = np.subtract(a, b)
-    v2 = np.subtract(c, b)
-    # both edges point down
-    if v1[1] < 0 and v2[1] <= 0:
+    if i is None: return False
+    v1, v2 = EdgesAtPoint(points, i)
+    if v1[1] < 0 and v2[1] <= 0: # both edges point down
         angle = InteriorAngle(v2, v1)
-        # assert angle > 0
-        if angle < np.pi:
+        if angle < np.pi: # angle < 180 degrees
             return True
     return False
 
-def IsEndVertex(tri_points):
-    a, b, c = tri_points
-    v1 = np.subtract(a, b)
-    v2 = np.subtract(c, b)
-    # both edges point up
-    if v1[1] > 0 and v2[1] > 0:
+def IsEndVertex(points, i):
+    if i is None: return False
+    v1, v2 = EdgesAtPoint(points, i)
+    if v1[1] > 0 and v2[1] > 0: # both edges point up
         angle = InteriorAngle(v2, v1)
-        # assert angle > 0
-        if angle < np.pi:
+        if angle < np.pi: # angle is < 180 degrees
             return True
     return False
 
-def IsSplitVertex(tri_points):
-    a, b, c = tri_points
-    v1 = np.subtract(a, b)
-    v2 = np.subtract(c, b)
-    if v1[1] < 0 and v2[1] <= 0:
+def IsSplitVertex(points, i):
+    if i is None: return False
+    v1, v2 = EdgesAtPoint(points, i)
+    if v1[1] < 0 and v2[1] <= 0: # both edges point down
         angle = InteriorAngle(v2, v1)
-        # assert angle > 0
-        if angle > np.pi:
+        if angle > np.pi: # angle is > 180 degrees
             return True
     return False
 
-def IsMergeVertex(tri_points):
-    a, b, c = tri_points
-    v1 = np.subtract(a, b)
-    v2 = np.subtract(c, b)
-    if v1[1] > 0 and v2[1] > 0:
+def IsMergeVertex(points, i):
+    if i is None: return False
+    v1, v2 = EdgesAtPoint(points, i)
+    if v1[1] > 0 and v2[1] > 0: # both edges point up
         angle = InteriorAngle(v2, v1)
-        # assert angle > 0
-        if angle > np.pi:
+        if angle > np.pi: # angle > 180
             return True
     return False
-
-# interior vertex?
-    # one edge points up, one points down
-    # Does left or right matter?
 
 
 if __name__ == "__main__":
