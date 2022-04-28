@@ -18,24 +18,37 @@ class SegmentNode:
         self.edge = edge
         self.left = left
         self.right = right
+        self.helper = None
 
     def value(self, y):
         # Return the x-coordinate of the segment at y
         # y: a number
         # return: a number
-        # This was written by an AI!!!
-        if y < self.edge[0][1]:
+        if y >= self.edge[0][1]:
             return self.edge[0][0]
-        elif y > self.edge[1][1]:
+        elif y <= self.edge[1][1]:
             return self.edge[1][0]
         else:
-            return self.edge[0][0] + (y - self.edge[0][1]) * (self.edge[1][0] - self.edge[0][0]) / (self.edge[1][1] - self.edge[0][1])
+            return self.edge[0][0] + (self.edge[1][0] - self.edge[0][0]) * (y - self.edge[0][1]) / (self.edge[1][1] - self.edge[0][1])
+
+    def InOrder(self):
+        left, right = [], []
+        if self.left is not None:
+            left = self.left.InOrder()
+        if self.right is not None:
+            right = self.right.InOrder()
+        return left + [self] + right
 
 
 class ScanlineBST:
     def __init__(self):
         self.root = None
         self.y = None
+
+    def __repr__(self):
+        if self.root is None:
+            return 'ScanlineBST(None)'
+        return f'ScanlineBST({[x.edge[1] for x in self.root.InOrder()]})'
 
     def setY(self, y):
         # Place the scanline at y
@@ -45,13 +58,19 @@ class ScanlineBST:
         # Parameters:
         # edge: a tuple of 2 points
         # return: A reference to the node that was inserted
+        # Assume edges always point down.
+        print('insert', edge)
+
+        # DEBUG PLOT
+        plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], 'r-')
+
         new_node = SegmentNode(edge)
         if self.root is None:
             self.root = new_node
-            return
+            return new_node
         head = self.root
         while True:
-            if new_node.value(self.y) < head.value(self.y):
+            if edge[0][0] < head.value(edge[0][1]):
                 if head.left is None:
                     head.left = new_node
                     break
@@ -63,14 +82,16 @@ class ScanlineBST:
                 head = head.right
         return new_node
 
-    def find(self, value):
+    def find(self, point):
         # Should this take an edge as input?
+        x, y = point
         head = self.root
         while head is not None:
-            if head.value(self.y) == value:
+            print('comparing', head.value(y), head.edge[1], y)
+            if head.value(y) == x:
                 return head
             else:
-                if head.value(self.y) < value:
+                if x < head.value(y):
                     head = head.left
                 else:
                     head = head.right
@@ -89,6 +110,10 @@ class ScanlineBST:
         return best_fit
 
     def delete(self, value):
+        print('delete', value)
+        if type(value) == SegmentNode:
+            value = value.value(self.y)
+            print('delete value', value)
         head = self.root
         parent = None
         while head is not None:
@@ -100,12 +125,38 @@ class ScanlineBST:
                 to_delete = head
                 if head.left is None:
                     # No left child, easy patch
-                    if head.right is None:
-                        # No children
-                        self.root = None
-                    else:
-                        # Right child only
+                    if parent is None:
                         self.root = head.right
+                        return
+                    if parent.left == head:
+                        parent.left = head.right
+                        return
+                    else:
+                        parent.right = head.right
+                        return
+                else:
+                    # Left child, need to find the rightmost node
+                    # of the left child
+                    left_child = head.left
+                    left_child_parent = head
+                    while left_child.right is not None:
+                        left_child_parent = left_child
+                        left_child = left_child.right
+                    # Now left_child is the rightmost node of the left child
+                    # We can patch in the left child
+                    left_child.right = head.right
+                    if left_child_parent != head:
+                        left_child.left = head.left
+                        left_child_parent.right = None
+                    if parent is None:
+                        self.root = left_child
+                        return
+                    if parent.left == head:
+                        parent.left = left_child
+                        return
+                    else:
+                        parent.right = left_child
+                        return
                 break
             else:
                 parent = head
@@ -116,6 +167,9 @@ class ScanlineBST:
         if head is None:
             # Didn't find the node to delete
             assert(False)
+
+def AddDiagonal(points, i, j):
+    plt.plot([points[i][0], points[j][0]], [points[i][1], points[j][1]], 'c-')
 
 def Triangulate(points):
     # nlog(n) Triangulation Method
@@ -128,63 +182,83 @@ def Triangulate(points):
         edge = np.array([points[i-1], points[i]])
         plt.plot(edge[:, 0], edge[:, 1], 'k-')
 
-    # Sort points in order of x (or y)
-    sorted_points = np.argsort([x[1] for x in points])[::-1] # descending order
+    # Sort by y
+    # TODO: Resolve tie breakers in a better way
+    sorted_points = np.argsort([x[1] - (0.001 * x[0]) for x in points])[::-1] # descending order
     segments = ScanlineBST()
     sub_polygons = []
-    for i in sorted_points:
-        point = points[i]
+    diagonals = []
+    for idx in sorted_points:
+        print(' ')
+        prev_point, point, next_point = points[idx-1], points[idx], points[(idx+1) % len(points)]
+
         segments.setY(point[1])
         # what type of point is it?
         # Assume clockwise orientation
         # Scanline travels top to bottom
 
-        # if start vertex:
-        tri_points = [points[i-1], point, points[(i+1) % len(points)]]
-        c = 'm'
-        if IsStartVertex(points, i): # Angle like: /*\
-            # add edges to tree
-            # Notice, we only care about left edges, right edges face outside, where we don't need triangles
-            segments.insert((points[i-1], point))
+        c = 'm' # DEBUG PLOT
+        if IsStartVertex(points, idx): # Angle like: /*\
+            # add left edge to tree. We dont care about the right edge. It faces out.
+            node = segments.insert((point, prev_point)) # must point edge downwards
+            node.helper = idx
             c = 'y' # DEBUG PLOT
-        elif IsEndVertex(tri_points): # Angle like: \*/
-            # look at the vertex's edges
-            edge = segments.find(point[0])
+        elif IsEndVertex(points, idx): # Angle like: \*/
+            # # look at the vertex's edges
+            edge = segments.find(point)
             # if helper(edge) is a merge vertex:
-            if IsMergeVertex(edge.helper):
-                # TODO: add a diagonal from v to helper(edge))
+            if IsMergeVertex(points, edge.helper):
+                # add a diagonal from v to helper(edge))
+                AddDiagonal(points, idx, edge.helper)
                 pass
             # remove edge from tree
-            segments.remove(edge)
+            segments.delete(edge)
             c = 'r' # DEBUG PLOT
-        elif IsSplitVertex(tri_points): # Angle like: */\*
+        elif IsSplitVertex(points, idx): # Angle like: */\*
             # find the edge to it's left
-            edge = Segments.findLeftOf(point[0])
-            # TODO: add a diagonal from v to helper(edge)
+            edge = segments.findLeftOf(point[0])
+            # add a diagonal from v to helper(edge)
+            if edge.helper:
+                AddDiagonal(points, idx, edge.helper)
             # set hepder(edge) to v
-            edge.helper = point
+            edge.helper = idx
             # add v's edge to the tree
-            segments.insert((point, tri_points[1]))
+            segments.insert((point, prev_point)) # must point edge downwards
             c = 'b'
-        elif IsMergeVertex(tri_points): # Angle like: *\/*
-            # look at the edge terminating at v
-            edge = Segments.find((point, tri_points[1]))
+        elif IsMergeVertex(points, idx): # Angle like: *\/*
+            # # look at the edge terminating at v
+            edge = segments.find(point)
             # if helper(edge) is a merge vertex:
-            if IsMergeVertex(edge.helper):
-                # TODO: add a diagonal from v to helper(edge)
-                pass
-            # remove edge from tree
-            segments.remove(edge)
+            if IsMergeVertex(points, edge.helper):
+                # add a diagonal from v to helper(edge)
+                AddDiagonal(points, idx, edge.helper)
+            # delete edge from tree
+            segments.delete(edge)
             # look at the edge to the left of v
-            edge = Segments.findLeftOf(point[0])
+            edge = segments.findLeftOf(point[0])
             # if helper(edge) is a merge vertex:
-            if IsMergeVertex(edge.helper):
-                # TODO: add a diagonal from v to helper(edge)
-                pass
-            # helper(edge) = v
-            edge.helper = point
+            if IsMergeVertex(points, edge.helper):
+                # Add a diagonal from v to helper(edge)
+                AddDiagonal(points, idx, edge.helper)
+            edge.helper = idx
             c = 'g' # DEBUG PLOT
+        else: # Interior point
+            edge_node = segments.find(point)
+            if edge_node is not None:
+                # DEBUG PLOT
+                edge = edge_node.edge
+                plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], 'm-')
+                segments.delete(edge_node)
+                node = segments.insert((point, prev_point))
+                node.helper = idx
+                c = 'c'
+            else:
+                left_edge = segments.findLeftOf(point[0])
+                left_edge.helper = idx
         plt.plot(point[0], point[1], 'o', color=c)
+        plt.show(block=False)
+        plt.pause(0.1)
+        x = input('press enter to continue')
     plt.show()
     
     for polygon in sub_polygons:
