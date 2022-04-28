@@ -59,7 +59,6 @@ class ScanlineBST:
         # edge: a tuple of 2 points
         # return: A reference to the node that was inserted
         # Assume edges always point down.
-        print('insert', edge)
 
         # DEBUG PLOT
         plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], 'r-')
@@ -87,7 +86,6 @@ class ScanlineBST:
         x, y = point
         head = self.root
         while head is not None:
-            print('comparing', head.value(y), head.edge[1], y)
             if head.value(y) == x:
                 return head
             else:
@@ -110,10 +108,8 @@ class ScanlineBST:
         return best_fit
 
     def delete(self, value):
-        print('delete', value)
         if type(value) == SegmentNode:
             value = value.value(self.y)
-            print('delete value', value)
         head = self.root
         parent = None
         while head is not None:
@@ -189,7 +185,6 @@ def Triangulate(points):
     sub_polygons = []
     diagonals = []
     for idx in sorted_points:
-        print(' ')
         prev_point, point, next_point = points[idx-1], points[idx], points[(idx+1) % len(points)]
 
         segments.setY(point[1])
