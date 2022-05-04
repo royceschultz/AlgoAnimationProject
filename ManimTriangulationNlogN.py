@@ -7,13 +7,32 @@ from matplotlib import pyplot as plt
 
 # Configuration
 POLYGON = json.load(open("polygons.json"))
-KEY = 'large'
+KEY = 'sharp2'
 POINTS = POLYGON[KEY]
 SCENE = None
+TIME_SHORT = 0.5
 
 # Manim Config
 config.max_files_cached = 512
 config.output_file = f'Triangulation_{KEY}.mp4'
+
+messages = []
+def ClearMessage():
+    global messages
+    if messages:
+        SCENE.play(*[FadeOut(x) for x in messages], run_time=TIME_SHORT)
+        messages = []
+
+def UpdateMessage(lines):
+    global messages
+    if type(lines) == str:
+        lines = [lines]
+    ClearMessage()
+    messages.append(Text(lines[0]).shift(2.5 * DOWN))
+    for i in range(1, len(lines)):
+        messages.append(Text(lines[i]).next_to(messages[-1], DOWN))
+    SCENE.play(*[Write(x) for x in messages], run_time=TIME_SHORT)
+    SCENE.wait()
 
 class ScanlineTriangulation(Scene):
     def construct(self):
@@ -48,6 +67,7 @@ def Triangulate(self, points):
     self.add(scanline_point)
 
     # Sort by y
+    # TODO: Animate sorting.
     # TODO: Resolve tie breakers in a better way
     sorted_points = np.argsort([x[1] - (0.001 * x[0]) for x in points])[::-1] # descending order
     segments = ScanlineBST(self)
@@ -63,51 +83,66 @@ def Triangulate(self, points):
         AddVertexDot = lambda c: self.play(Create(VertexDot(c)))
         if IsStartVertex(points, idx): # Angle like: /*\
             # add left edge to tree. We dont care about the right edge. It faces out.
+            UpdateMessage(['This point is a start vertex', 'Add it\'s left edge to the tree'])
             AddVertexDot(YELLOW)
-            node = segments.insert((point, prev_point)) # must point edge downwards
-            # node.helper = idx
-            node.set_helper(idx
+            node = segments.insert((point, prev_point), helper=idx) # must point edge downwards
         elif IsEndVertex(points, idx): # Angle like: \*/
             # look at the vertex's edges
+            UpdateMessage(['This point is an end vertex', 'Check the helper of the left edge'])
             AddVertexDot(RED)
             edge = segments.find(point)
             if IsMergeVertex(points, edge.helper):
+                UpdateMessage('The helper is a merge vertex. Add a diagonal')
                 AddDiagonal(points, idx, edge.helper)
+            else:
+                UpdateMessage('The helper is not a merge vertex.')
             segments.delete(edge) # remove edge from tree
         elif IsSplitVertex(points, idx): # Angle like: */\*
             # find the edge to it's left
+            UpdateMessage(['This point is a split vertex'])
             AddVertexDot(BLUE)
             edge = segments.findLeftOf(point)
             if edge.helper: # TODO: Why would it be None?
+                UpdateMessage('Add a diagonal to this edge\'s helper')
                 AddDiagonal(points, idx, edge.helper) # Found a diagonal!
             edge.set_helper(idx)
+            UpdateMessage('Add the vertex\'s right edge to the tree.')
             segments.insert((point, prev_point)) # must point edge downwards
         elif IsMergeVertex(points, idx): # Angle like: *\/*
             # look at the edge terminating at v
+            UpdateMessage(['This point is a merge vertex', 'Check the helper of it\'s right edge'])
             AddVertexDot(GREEN)
             edge = segments.find(point)
             if IsMergeVertex(points, edge.helper):
+                UpdateMessage('The helper is a merge vertex. Add a diagonal.')
                 AddDiagonal(points, idx, edge.helper) # Found a diagonal!
+            else:
+                UpdateMessage('The helper is not a merge vertex.')
             segments.delete(edge)
             # look at the edge to the left of v
             edge = segments.findLeftOf(point)
             if IsMergeVertex(points, edge.helper):
+                UpdateMessage('This edge\'s helper is a merge vertex. Add a diagonal.')
                 AddDiagonal(points, idx, edge.helper) # Found a diagonal!
             edge.set_helper(idx) # update helper
         else: # Interior point
             edge_node = segments.find(point)
             if edge_node is not None: # TODO: Is there a better condition to use?
+                UpdateMessage(['This point is an left interior vertex'])
                 edge = edge_node.edge
                 if IsMergeVertex(points, edge_node.helper):
                     AddDiagonal(points, idx, edge_node.helper) # Found a diagonal!
-                segments.delete(edge_node)
-                node = segments.insert((point, prev_point))
-                node.set_helper(idx)
+                UpdateMessage(['Remove the edge above', 'Add the edge below'])
+                segments.delete(edge_node, verbose=False)
+                node = segments.insert((point, prev_point), helper=idx)
             else:
+                UpdateMessage(['This point is an right interior vertex'])
                 edge = segments.findLeftOf(point)
                 if IsMergeVertex(points, edge.helper):
+                    UpdateMessage('This helper is a merge vertex. Add a diagonal.')
                     AddDiagonal(points, idx, edge.helper) # Found a diagonal!
                 edge.set_helper(idx)
+    UpdateMessage(['The polygon is now composed', 'of monotone sub-polygons.'])
     # TODO: Triangulate monotone subpolygons
     return
 
@@ -238,6 +273,7 @@ class SegmentNode:
     def set_helper(self, helper):
         # Parameters:
         #   helper: INT, An index
+        UpdateMessage(['Update the edge\'s helper'])
         self.helper = helper
         helper_point = POINTS[helper]
         new_helper_line = Line([self.value(helper_point[1]), helper_point[1]] + [0], helper_point + [0], color=GREEN, stroke_width=5)
@@ -274,14 +310,14 @@ class ScanlineBST:
         # TODO: deprecate this.
         self.y = y
 
-    def insert(self, edge):
+    def insert(self, edge, **kwargs):
         # Parameters:
         #   edge: a tuple of 2 points
         # Return a reference to the node that was inserted
         # Assume edges always point down.
-        assert(edge[0][1] > edge[1][1]))
+        assert(edge[0][1] > edge[1][1])
 
-        new_node = SegmentNode(edge)
+        new_node = SegmentNode(edge, **kwargs)
 
         if self.root is None: # Empty tree
             self.root = new_node
@@ -324,6 +360,7 @@ class ScanlineBST:
         #   point: (x, y) coordinates
         # Returns the SegmentNode that is the left of the point
         # TODO: [low priority] Is there an easy way to ignore edges landing on this point?
+        UpdateMessage('Find the edge to the left of the node')
         x, y = point
         head = self.root
         best_fit = None
@@ -334,14 +371,16 @@ class ScanlineBST:
             else:
                 head = head.left
         endpoint = [best_fit.value(y), y]
-        query_line = Line(point + [0], endpoint + [0], color=GRAY, stroke_width=5)
+        query_line = Line(point + [0], endpoint + [0], color=GOLD, stroke_width=5)
         self.scene.play(Create(query_line))
         self.scene.play(Uncreate(query_line))
         return best_fit
 
-    def delete(self, value):
+    def delete(self, value, verbose=True):
         # Parameters:
         #   value: a number OR a SegmentNode
+        if verbose:
+            UpdateMessage('Remove an edge from the tree')
         if type(value) == SegmentNode: # Get node value
             value = value.value(self.y)
         head = self.root
