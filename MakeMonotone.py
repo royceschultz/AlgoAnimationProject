@@ -51,22 +51,24 @@ def AddDiagonal(points, i, j):
 def MakeMonotone(self, points):
     # Parameters:
     #   points: list of points
+    # Warning: Using a mix of points and (global) POINTS. This is a bodge.
     # Return: list of triangles
     # Assume clockwise orientation
     # Scanline travels top to bottom
 
     # Manim Object
     ScanLineLine = lambda y: Line([-10, y, 0], [10, y, 0], color=RED)
-    scanline = ScanLineLine(10)
+    scanline = ScanLineLine(10) # 10 > frame height
     scanline_point = Dot([-10, 10, 0], color=RED)
 
     # Init scene
     self.add(scanline)
     self.add(scanline_point)
-    # Sort by y
+    # Sort by decreasing y
     # TODO: Resolve tie breakers in a better way
-    sorted_points = np.argsort([x[1] - (0.001 * x[0]) for x in points])[::-1] # descending order
+    sorted_points = np.argsort([x[1] - (0.001 * x[0]) for x in points])[::-1]
 
+    # Animate sorting points by y coordinate
     UpdateMessage('Sort points by Y')
     sorted_dots = []
     actions = []
@@ -79,10 +81,11 @@ def MakeMonotone(self, points):
         actions.append(Transform(sorted_dots[i], Dot([0, points[idx][1], 0], color=BLUE).to_edge(RIGHT, buff=1)))
     self.play(*actions)
 
+    # Begin scanning points
     segments = ScanlineBST(self)
     for idx in sorted_points:
         prev_point, point, next_point = points[idx-1], points[idx], points[(idx+1) % len(points)]
-        segments.setY(point[1])
+        segments.setY(point[1]) # Move scanline to point
         self.play(
             Transform(scanline, ScanLineLine(point[1])),
             Transform(scanline_point, Dot(point + [0], color=RED)),
@@ -112,9 +115,8 @@ def MakeMonotone(self, points):
             UpdateMessage(['This point is a split vertex'])
             AddVertexDot(BLUE)
             edge = segments.findLeftOf(point)
-            if edge.get_helper(): # TODO: Why would it be None?
-                UpdateMessage('Add a diagonal to this edge\'s helper')
-                AddDiagonal(points, idx, edge.helper) # Found a diagonal!
+            UpdateMessage('Add a diagonal to this edge\'s helper')
+            AddDiagonal(points, idx, edge.get_helper()) # Found a diagonal!
             edge.set_helper(idx)
             UpdateMessage('Add the vertex\'s right edge to the tree.')
             segments.insert((point, prev_point), helper=idx) # must point edge downwards
@@ -139,6 +141,7 @@ def MakeMonotone(self, points):
             edge.set_helper(idx) # update helper
         else: # Interior point
             edge = segments.find(point)
+            # Is edge left or right side?
             if edge is not None: # TODO: Is there a better condition to use?
                 UpdateMessage(['This point is a left interior vertex'])
                 if IsMergeVertex(points, edge.get_helper()):
@@ -149,7 +152,7 @@ def MakeMonotone(self, points):
                 UpdateMessage(['Remove the edge above', 'Add the edge below'])
                 segments.delete(edge, verbose=False)
                 node = segments.insert((point, prev_point), helper=idx)
-            else:
+            else: # Right interior  vertex
                 UpdateMessage(['This point is a right interior vertex'])
                 edge = segments.findLeftOf(point)
                 if IsMergeVertex(points, edge.get_helper()):
