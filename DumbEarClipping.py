@@ -2,8 +2,22 @@ from manim import *
 import numpy as np
 import json
 
-# Local Modules
-from helpers import *
+def CalculateAngle(a, b):
+    # x = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+    # return np.arccos(x)
+    x = np.cross(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+    return np.arcsin(x).sum()
+
+def CheckTriangleContains(tri, point):
+    a, b, c = tri
+    i = CalculateAngle(np.subtract(b, a), np.subtract(point, a))
+    j = CalculateAngle(np.subtract(c, b), np.subtract(point, b))
+    k = CalculateAngle(np.subtract(a, c), np.subtract(point, c))
+    if i > 0 and j > 0 and k > 0:
+        return True
+    if i < 0 and j < 0 and k < 0:
+        return True
+    return False
 
 class LineTest(Scene):
     def construct(self):
@@ -12,11 +26,11 @@ class LineTest(Scene):
         self.play(Create(line1), Create(line2))
         self.play(Uncreate(line1), Uncreate(line2))
 
-class EarClipping(Scene):
+class EarClippingCubed(Scene):
     def construct(self):
         # Load polygons from json file
         saved_polygons = json.load(open('polygons.json'))
-        key = 'star'
+        key = 'sharp2'
         # User input method for selecting polygon
         if key is None: # Skip if key is already defined above
             for k, pts in saved_polygons.items():
@@ -32,39 +46,50 @@ class EarClipping(Scene):
         # Create shapes
         polygon = Polygon(*points, color=PURPLE_B)
         polygon.set_fill(PURPLE_B, opacity=1)
-        triangle_cursor = Polygon([0,2.5,0], [1,1,0], [-1,1,0])
 
         self.add(polygon)
-        triangle_cursor.next_to(polygon, LEFT)
-        self.play(FadeIn(triangle_cursor))
         self.wait()
 
         triangulations = []
-        i = 0    
+        i = 0
+        line1 = Line(LEFT, RIGHT)
+        line2 = Line(UP, DOWN)
         while True:
             if len(points) < 3:
                 break
             # Select 3 sequential points forming a triangle
+            # info1 = Text('Find Ear based on angle')
+            # info1.align_to(polygon, UP + LEFT)
+            # self.play(Write(info1))
             query_triangle = [points[i], points[i-1], points[i-2]]
             a, b, c = query_triangle
-            line1 = Line(a, b, color=WHITE)
-            line2 = Line(b, c, color=WHITE)
-            # angle = Angle(line1, line2, radius=0.5, color=RED)
+            line1.put_start_and_end_on(b, a)
+            line2.put_start_and_end_on(c, b)
 
             self.play(Create(line1), Create(line2))
-            # self.play(Create(angle))
 
-            # Animate query triangle
-            
             # Check if the triangle is inward or outward facing
             # TODO: Assumes clockwise order. Counter clockwise order will not work
             a, b, c = query_triangle
             angle = CalculateAngle(np.subtract(b, a), np.subtract(c,a))
-            self.play(Uncreate(line1), Uncreate(line2))
+
+            if angle > 0:
+                angle_obj = Angle(line1, line2, radius=0.5, color=GREEN)
+            else:
+                angle_obj = Angle(line1, line2, radius=0.5, color=RED)
+            self.play(Create(angle_obj))
+
+            if angle < 0:
+                self.play(Uncreate(angle_obj))
+                self.play(Uncreate(line1), Uncreate(line2))
             if angle > 0:
                 selection = Polygon(*query_triangle, color=WHITE)
-                self.play(Transform(triangle_cursor, selection))
+                self.play(Create(selection))
+                self.play(Uncreate(angle_obj))
+                self.play(Uncreate(line1), Uncreate(line2))
                 # Check if the query triangle contains no other points in the polygon
+                # info1.set_text('Check if triangle contains no other points')
+                # self.play(Write(info1))
                 checked_points = []
                 is_ear = True
                 for j in range(len(points) - 3):
@@ -87,7 +112,7 @@ class EarClipping(Scene):
                     new_triangle = Polygon(*query_triangle, color=BLUE)
                     triangulations.append(new_triangle)
                     self.play(FadeIn(new_triangle))
-                    self.play(triangle_cursor.animate.set_opacity(0))
+                    self.play(FadeOut(selection))
 
                     points.pop(i-1)
                     new_polygon = Polygon(*points, color=PURPLE_B)
@@ -106,5 +131,3 @@ class EarClipping(Scene):
 
             i += 1
             i %= len(points)
-
- 
