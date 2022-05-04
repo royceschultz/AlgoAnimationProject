@@ -63,11 +63,22 @@ def MakeMonotone(self, points):
     # Init scene
     self.add(scanline)
     self.add(scanline_point)
-
     # Sort by y
-    # TODO: Animate sorting.
     # TODO: Resolve tie breakers in a better way
     sorted_points = np.argsort([x[1] - (0.001 * x[0]) for x in points])[::-1] # descending order
+
+    UpdateMessage('Sort points by Y')
+    sorted_dots = []
+    actions = []
+    for idx in sorted_points:
+        sorted_dots.append(Dot(points[idx] + [0], color=BLUE))
+        actions.append(Create(sorted_dots[-1]))
+    self.play(*actions)
+    actions = []
+    for i, idx in enumerate(sorted_points):
+        actions.append(Transform(sorted_dots[i], Dot([0, points[idx][1], 0], color=BLUE).to_edge(RIGHT, buff=1)))
+    self.play(*actions)
+
     segments = ScanlineBST(self)
     for idx in sorted_points:
         prev_point, point, next_point = points[idx-1], points[idx], points[(idx+1) % len(points)]
@@ -76,6 +87,7 @@ def MakeMonotone(self, points):
             Transform(scanline, ScanLineLine(point[1])),
             Transform(scanline_point, Dot(point + [0], color=RED)),
         )
+        self.play(Uncreate(sorted_dots.pop(0)))
         # what type of point is it?
         VertexDot = lambda c: Dot(point + [0], color=c)
         AddVertexDot = lambda c: self.play(Create(VertexDot(c)))
