@@ -1,8 +1,7 @@
+# This script is a manim animation showcasing an algorithm to break down a polygon into monotone sub-polygons in nlog(n) time.
 from manim import *
 import numpy as np
 import json
-
-from matplotlib import pyplot as plt
 
 
 # Configuration
@@ -14,7 +13,7 @@ TIME_SHORT = 0.5
 
 # Manim Config
 config.max_files_cached = 512
-config.output_file = f'Triangulation_{KEY}.mp4'
+config.output_file = f'MakeMontone_{KEY}.mp4'
 
 messages = []
 def ClearMessage():
@@ -34,13 +33,13 @@ def UpdateMessage(lines):
     SCENE.play(*[Write(x) for x in messages], run_time=TIME_SHORT)
     SCENE.wait()
 
-class ScanlineTriangulation(Scene):
+class MakeMonotoneAnimation(Scene):
     def construct(self):
         global SCENE
         SCENE = self
         primary_polygon = Polygon(*[x + [0]  for x in POINTS], color=PURPLE_B)
         self.add(primary_polygon)
-        Triangulate(self, POINTS)
+        MakeMonotone(self, POINTS)
 
 
 def AddDiagonal(points, i, j):
@@ -49,8 +48,7 @@ def AddDiagonal(points, i, j):
     SCENE.play(Create(diagonal_line))
 
 
-def Triangulate(self, points):
-    # O(nlog(n)) Triangulation Method
+def MakeMonotone(self, points):
     # Parameters:
     #   points: list of points
     # Return: list of triangles
@@ -145,29 +143,6 @@ def Triangulate(self, points):
     UpdateMessage(['The polygon is now composed', 'of monotone sub-polygons.'])
     # TODO: Triangulate monotone subpolygons
     return
-
-def MonotoneTriangulate(points):
-    # Check points are monotone
-    # Divide into 2 sets, sorted in monotone direction (tbd)
-    left_points, right_points = MonotoneSplit(points)
-    # Greedy triangulate
-
-    # 2 stacks
-    left_stack = []
-    right_stack = []
-
-    while True:
-        pass
-        # if left_points.top() < right_points.top():
-            # left_stack.push(left_points.pop())
-        # else:
-            # right_stack.push(right_points.pop())
-        # expect each stack to have 1 element
-        # 1 stack may exceed this IF nodes are reflex (angle > 180, sweeping outward)
-        # if both stacks have more than 1 element
-            # do some triangulating
-
-        # how to terminate?
 
 #
 # Helpers
@@ -430,7 +405,3 @@ class ScanlineBST:
                     print('No mobject')
                 return
         assert head is not None # Nothing to delete
-
-
-if __name__ == "__main__":
-    Triangulate(POINTS)

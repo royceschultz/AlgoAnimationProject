@@ -32,10 +32,9 @@ def UpdateMessage(self, lines):
     for i in range(1, len(lines)):
         messages.append(Text(lines[i]).next_to(messages[-1], DOWN))
     self.play(*[Write(x) for x in messages], run_time=TIME_SHORT)
-    # for message in messages:
-    #     self.play(Write(message), run_time=TIME_SHORT)
     self.wait()
-class Triangulation(Scene):
+
+class SmartEarClippingAnimation(Scene):
     def construct(self):
         primary_polygon = Polygon(*[x + [0]  for x in POINTS], color=PRIMARY_COLOR)
         self.add(primary_polygon)
