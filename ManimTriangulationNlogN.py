@@ -22,14 +22,13 @@ class ScanlineTriangulation(Scene):
         primary_polygon = Polygon(*[x + [0]  for x in POINTS], color=PURPLE_B)
         self.add(primary_polygon)
         Triangulate(self, POINTS)
-        
 
 
-def AddDiagonal(points, i, j): # DEBUG PLOT
-    # plt.plot([points[i][0], points[j][0]], [points[i][1], points[j][1]], 'c-')
+def AddDiagonal(points, i, j):
     diagonal_line = Line(points[i] + [0], points[j] + [0], color=BLUE)
     global SCENE
     SCENE.play(Create(diagonal_line))
+
 
 def Triangulate(self, points):
     # O(nlog(n)) Triangulation Method
@@ -48,11 +47,6 @@ def Triangulate(self, points):
     self.add(scanline)
     self.add(scanline_point)
 
-    # DEBUG PLOT
-    # for i in range(len(points)):
-    #     edge = np.array([points[i-1], points[i]])
-    #     plt.plot(edge[:, 0], edge[:, 1], 'k-')
-
     # Sort by y
     # TODO: Resolve tie breakers in a better way
     sorted_points = np.argsort([x[1] - (0.001 * x[0]) for x in points])[::-1] # descending order
@@ -65,15 +59,14 @@ def Triangulate(self, points):
             Transform(scanline_point, Dot(point + [0], color=RED)),
         )
         # what type of point is it?
-        c = 'm' # DEBUG PLOT
         VertexDot = lambda c: Dot(point + [0], color=c)
         AddVertexDot = lambda c: self.play(Create(VertexDot(c)))
         if IsStartVertex(points, idx): # Angle like: /*\
             # add left edge to tree. We dont care about the right edge. It faces out.
             AddVertexDot(YELLOW)
             node = segments.insert((point, prev_point)) # must point edge downwards
-            node.helper = idx
-            c = 'y' # DEBUG PLOT
+            # node.helper = idx
+            node.set_helper(idx
         elif IsEndVertex(points, idx): # Angle like: \*/
             # look at the vertex's edges
             AddVertexDot(RED)
@@ -81,16 +74,14 @@ def Triangulate(self, points):
             if IsMergeVertex(points, edge.helper):
                 AddDiagonal(points, idx, edge.helper)
             segments.delete(edge) # remove edge from tree
-            c = 'r' # DEBUG PLOT
         elif IsSplitVertex(points, idx): # Angle like: */\*
             # find the edge to it's left
             AddVertexDot(BLUE)
             edge = segments.findLeftOf(point)
             if edge.helper: # TODO: Why would it be None?
                 AddDiagonal(points, idx, edge.helper) # Found a diagonal!
-            edge.helper = idx
+            edge.set_helper(idx)
             segments.insert((point, prev_point)) # must point edge downwards
-            c = 'b'
         elif IsMergeVertex(points, idx): # Angle like: *\/*
             # look at the edge terminating at v
             AddVertexDot(GREEN)
@@ -102,34 +93,22 @@ def Triangulate(self, points):
             edge = segments.findLeftOf(point)
             if IsMergeVertex(points, edge.helper):
                 AddDiagonal(points, idx, edge.helper) # Found a diagonal!
-            edge.helper = idx # update helper
-            c = 'g' # DEBUG PLOT
+            edge.set_helper(idx) # update helper
         else: # Interior point
             edge_node = segments.find(point)
             if edge_node is not None: # TODO: Is there a better condition to use?
-                # DEBUG PLOT
                 edge = edge_node.edge
-                # plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], 'm-')
                 if IsMergeVertex(points, edge_node.helper):
                     AddDiagonal(points, idx, edge_node.helper) # Found a diagonal!
                 segments.delete(edge_node)
                 node = segments.insert((point, prev_point))
-                node.helper = idx
-                c = 'c' # DEBUG PLOT
+                node.set_helper(idx)
             else:
                 edge = segments.findLeftOf(point)
                 if IsMergeVertex(points, edge.helper):
                     AddDiagonal(points, idx, edge.helper) # Found a diagonal!
-                edge.helper = idx
-        # # DEBUG PLOT
-        # plt.plot(point[0], point[1], 'o', color=c)
-        # plt.show(block=False)
-        # plt.pause(0.1)
-        # x = input('press enter to continue')
-    # plt.show() # DEBUG PLOT
-    
+                edge.set_helper(idx)
     # TODO: Triangulate monotone subpolygons
-
     return
 
 def MonotoneTriangulate(points):
@@ -226,7 +205,14 @@ class SegmentNode:
         self.left = left
         self.right = right
         self.helper = helper
-        self.mobject = None
+        self.helper_mobject = None
+
+        # Animate node addition
+        edge_line = Line(edge[0] + [0], edge[1] + [0], color=YELLOW, stroke_width=5)
+        SCENE.play(Create(edge_line))
+        self.mobject = edge_line
+
+        
 
     def value(self, y):
         # Return the x-coordinate of the segment at a given y
@@ -248,6 +234,19 @@ class SegmentNode:
         if self.right is not None:
             right = self.right.InOrder()
         return left + [self] + right
+
+    def set_helper(self, helper):
+        # Parameters:
+        #   helper: INT, An index
+        self.helper = helper
+        helper_point = POINTS[helper]
+        new_helper_line = Line([self.value(helper_point[1]), helper_point[1]] + [0], helper_point + [0], color=GREEN, stroke_width=5)
+        if self.helper_mobject is not None:
+            SCENE.play(Transform(self.helper_mobject, new_helper_line))
+        else:
+            SCENE.play(Create(new_helper_line))
+            self.helper_mobject = new_helper_line
+        return
 
 
 class ScanlineBST:
@@ -280,16 +279,9 @@ class ScanlineBST:
         #   edge: a tuple of 2 points
         # Return a reference to the node that was inserted
         # Assume edges always point down.
-        assert(edge[0][1] > edge[1][1])
-
-        # DEBUG PLOT
-        plt.plot([edge[0][0], edge[1][0]], [edge[0][1], edge[1][1]], 'r-')
+        assert(edge[0][1] > edge[1][1]))
 
         new_node = SegmentNode(edge)
-        # Animate node addition
-        edge_line = Line(edge[0] + [0], edge[1] + [0], color=YELLOW, stroke_width=5)
-        self.scene.play(Create(edge_line))
-        new_node.mobject = edge_line
 
         if self.root is None: # Empty tree
             self.root = new_node
@@ -391,7 +383,10 @@ class ScanlineBST:
                     else: # head is right child
                         parent.right = left_child
                 if head.mobject:
-                    self.scene.play(Uncreate(head.mobject))
+                    actions = [Uncreate(head.mobject)]
+                    if head.helper_mobject is not None:
+                        actions.append(Uncreate(head.helper_mobject))
+                    self.scene.play(*actions)
                 else:
                     print('No mobject')
                 return
