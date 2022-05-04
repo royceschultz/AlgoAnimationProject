@@ -131,7 +131,7 @@ def MakeMonotone(self, points):
             segments.delete(edge)
             # look at the edge to the left of v
             edge = segments.findLeftOf(point)
-            if IsMergeVertex(points, edge.get_helper()):
+            if IsMergeVertex(points, edge.get_helper(verbose=False)):
                 UpdateMessage('This edge\'s helper is a merge vertex. Add a diagonal.')
                 AddDiagonal(points, idx, edge.helper) # Found a diagonal!
             else:
@@ -277,11 +277,12 @@ class SegmentNode:
             self.helper_mobject = new_helper_line
         return
 
-    def get_helper(self):
+    def get_helper(self, verbose=True):
         if self.helper is None:
             return None
         SCENE.play(self.mobject.animate.set_color(GREEN), run_time=TIME_SHORT)
-        UpdateMessage('Check the edge\'s helper')
+        if verbose:
+            UpdateMessage('Check the edge\'s helper')
         point = POINTS[self.helper]
         dot = Dot(point + [0], color=GREEN, radius=0.7, fill_opacity=0.3)
         SCENE.play(FadeIn(dot))
@@ -319,7 +320,7 @@ class ScanlineBST:
         #   edge: a tuple of 2 points
         # Return a reference to the node that was inserted
         # Assume edges always point down.
-        assert(edge[0][1] > edge[1][1])
+        assert(edge[0][1] >= edge[1][1])
 
         new_node = SegmentNode(edge, **kwargs)
 
@@ -375,7 +376,7 @@ class ScanlineBST:
             else:
                 head = head.left
         endpoint = [best_fit.value(y), y]
-        query_line = Line(point + [0], endpoint + [0], color=GOLD, stroke_width=5)
+        query_line = Line(point + [0], endpoint + [0], color=GOLD, stroke_width=10)
         self.scene.play(Create(query_line))
         self.scene.play(Uncreate(query_line))
         return best_fit
