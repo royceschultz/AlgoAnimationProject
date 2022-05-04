@@ -98,59 +98,65 @@ def MakeMonotone(self, points):
             node = segments.insert((point, prev_point), helper=idx) # must point edge downwards
         elif IsEndVertex(points, idx): # Angle like: \*/
             # look at the vertex's edges
-            UpdateMessage(['This point is an end vertex', 'Check the helper of the left edge'])
+            UpdateMessage(['This point is an end vertex', 'Check the helper of it\'s left edge'])
             AddVertexDot(RED)
             edge = segments.find(point)
-            if IsMergeVertex(points, edge.helper):
+            if IsMergeVertex(points, edge.get_helper()):
                 UpdateMessage('The helper is a merge vertex. Add a diagonal')
                 AddDiagonal(points, idx, edge.helper)
             else:
-                UpdateMessage('The helper is not a merge vertex.')
+                UpdateMessage(['The helper is not a merge vertex.', 'Do nothing.'])
             segments.delete(edge) # remove edge from tree
         elif IsSplitVertex(points, idx): # Angle like: */\*
             # find the edge to it's left
             UpdateMessage(['This point is a split vertex'])
             AddVertexDot(BLUE)
             edge = segments.findLeftOf(point)
-            if edge.helper: # TODO: Why would it be None?
+            if edge.get_helper(): # TODO: Why would it be None?
                 UpdateMessage('Add a diagonal to this edge\'s helper')
                 AddDiagonal(points, idx, edge.helper) # Found a diagonal!
             edge.set_helper(idx)
             UpdateMessage('Add the vertex\'s right edge to the tree.')
-            segments.insert((point, prev_point)) # must point edge downwards
+            segments.insert((point, prev_point), helper=idx) # must point edge downwards
         elif IsMergeVertex(points, idx): # Angle like: *\/*
             # look at the edge terminating at v
             UpdateMessage(['This point is a merge vertex', 'Check the helper of it\'s right edge'])
             AddVertexDot(GREEN)
             edge = segments.find(point)
-            if IsMergeVertex(points, edge.helper):
+            if IsMergeVertex(points, edge.get_helper()):
                 UpdateMessage('The helper is a merge vertex. Add a diagonal.')
                 AddDiagonal(points, idx, edge.helper) # Found a diagonal!
             else:
-                UpdateMessage('The helper is not a merge vertex.')
+                UpdateMessage(['The helper is not a merge vertex.', 'Do nothing'])
             segments.delete(edge)
             # look at the edge to the left of v
             edge = segments.findLeftOf(point)
-            if IsMergeVertex(points, edge.helper):
+            if IsMergeVertex(points, edge.get_helper()):
                 UpdateMessage('This edge\'s helper is a merge vertex. Add a diagonal.')
                 AddDiagonal(points, idx, edge.helper) # Found a diagonal!
+            else:
+                UpdateMessage(['This edge\'s helper is not a merge vertex.', 'Do nothing.'])
             edge.set_helper(idx) # update helper
         else: # Interior point
-            edge_node = segments.find(point)
-            if edge_node is not None: # TODO: Is there a better condition to use?
-                UpdateMessage(['This point is an left interior vertex'])
-                edge = edge_node.edge
-                if IsMergeVertex(points, edge_node.helper):
-                    AddDiagonal(points, idx, edge_node.helper) # Found a diagonal!
+            edge = segments.find(point)
+            if edge is not None: # TODO: Is there a better condition to use?
+                UpdateMessage(['This point is a left interior vertex'])
+                if IsMergeVertex(points, edge.get_helper()):
+                    UpdateMessage('The helper is a merge vertex. Add a diagonal.')
+                    AddDiagonal(points, idx, edge.helper) # Found a diagonal!
+                else:
+                    UpdateMessage(['The helper is not a merge vertex.', 'Do nothing'])
                 UpdateMessage(['Remove the edge above', 'Add the edge below'])
-                segments.delete(edge_node, verbose=False)
+                segments.delete(edge, verbose=False)
                 node = segments.insert((point, prev_point), helper=idx)
             else:
-                UpdateMessage(['This point is an right interior vertex'])
+                UpdateMessage(['This point is a right interior vertex'])
                 edge = segments.findLeftOf(point)
-                if IsMergeVertex(points, edge.helper):
+                if IsMergeVertex(points, edge.get_helper()):
                     UpdateMessage('This helper is a merge vertex. Add a diagonal.')
                     AddDiagonal(points, idx, edge.helper) # Found a diagonal!
+                else:
+                    UpdateMessage(['This helper is not a merge vertex.', 'Do nothing.'])
                 edge.set_helper(idx)
     UpdateMessage(['The polygon is now composed', 'of monotone sub-polygons.'])
     # TODO: Triangulate monotone subpolygons
@@ -270,6 +276,17 @@ class SegmentNode:
             SCENE.play(Create(new_helper_line))
             self.helper_mobject = new_helper_line
         return
+
+    def get_helper(self):
+        if self.helper is None:
+            return None
+        SCENE.play(self.mobject.animate.set_color(GREEN), run_time=TIME_SHORT)
+        UpdateMessage('Check the edge\'s helper')
+        point = POINTS[self.helper]
+        dot = Dot(point + [0], color=GREEN, radius=0.7, fill_opacity=0.3)
+        SCENE.play(FadeIn(dot))
+        SCENE.play(FadeOut(dot), self.mobject.animate.set_color(YELLOW))
+        return self.helper
 
 
 class ScanlineBST:
