@@ -59,7 +59,8 @@ def MakeMonotone(self, points):
     # Manim Object
     ScanLineLine = lambda y: Line([-10, y, 0], [10, y, 0], color=RED)
     scanline = ScanLineLine(10) # 10 > frame height
-    scanline_point = Dot([-10, 10, 0], color=RED)
+    ScanLineDot = lambda point: Dot(point + [0], color=WHITE, radius=0.7, fill_opacity=0.2)
+    scanline_point = ScanLineDot([-10, 10])
 
     # Init scene
     self.add(scanline)
@@ -88,7 +89,7 @@ def MakeMonotone(self, points):
         segments.setY(point[1]) # Move scanline to point
         self.play(
             Transform(scanline, ScanLineLine(point[1])),
-            Transform(scanline_point, Dot(point + [0], color=RED)),
+            Transform(scanline_point, ScanLineDot(point)),
         )
         self.play(Uncreate(sorted_dots.pop(0)))
         # what type of point is it?
