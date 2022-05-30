@@ -83,6 +83,25 @@ def PartitionPoints(points, i, j):
     right = points[j:len(points)] + points[0:i+1]
     return left, right
 
+def FindGoodSubPolygon(points, i, j):
+    # Parameters:
+    # points: list of points
+    # i, j: Indices of a diagonal of a polygon.
+    left, right = PartitionPoints(points, i, j)
+    # Search the smaller side
+    sub_polygon = left
+    if len(right) < len(left):
+        sub_polygon = right
+    middle_index = len(sub_polygon) // 2
+    try:
+        d = FindDiagonalFrom(middle_index, sub_polygon)
+    except:
+        # Is this necessary? I don't think so.
+        # Pretty sure this implies middle_index is an ear.
+        # Could exit early instead.
+        d = FindDiagonalFrom(middle_index + 1, points)
+    return sub_polygon, middle_index, d
+
 
 # Find a diagonal, any diagonal.
 a = 0
@@ -92,20 +111,6 @@ try:
 except: # Try again, guaranteed to work
     a = 1
     b = FindDiagonalFrom(a, POINTS)
-# Pick a side of the diagonal (right or left)
-left, right = PartitionPoints(POINTS, a, b)
-# Arbitrarily picking right side.
-# Bisect that side
-c = len(right) // 2
-# Find a diagonal containing the bisecting point and within that side
-d = FindDiagonalFrom(c, right)
-# Choose the good side.
-# The good side will always be less than 1/2 the points
-left, right = PartitionPoints(right, c, d)
-good_sub_polygon = right
-if len(left) < len(right):
-    good_sub_polygon = left
-# Recurse until an ear is found in linear time.
-# This forms a geometric series
-# Repeat n times to triangulate.
-# Overall O(n^2)
+sub_polygon = POINTS
+while len(sub_polygon) > 3:
+    sub_polygon, a, b = FindGoodSubPolygon(sub_polygon, a, b)
