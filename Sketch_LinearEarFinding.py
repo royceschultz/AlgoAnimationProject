@@ -83,25 +83,6 @@ def PartitionPoints(points, i, j):
     right = points[j:len(points)] + points[0:i+1]
     return left, right
 
-# # DEBUG PLOT
-# plt.plot([p[0] for p in POINTS + [POINTS[0]]], [p[1] for p in POINTS + [POINTS[0]]])
-# plt.plot([p[0] for p in POINTS + [POINTS[0]]], [p[1] for p in POINTS + [POINTS[0]]], 'ro')
-
-# try:
-#     a = 1
-#     b = FindDiagonalFrom(a, POINTS)
-# except:
-#     a = 0
-#     b = FindDiagonalFrom(a, POINTS)
-
-# plt.plot([POINTS[a][0], POINTS[b][0]], [POINTS[a][1], POINTS[b][1]], 'g')
-
-# left, right = PartitionPoints(POINTS, a, b)
-# plt.plot([p[0] for p in left + [left[0]]], [p[1] for p in left + [left[0]]], 'b')
-# plt.plot([p[0] for p in right + [right[0]]], [p[1] for p in right + [right[0]]], 'r')
-
-# plt.show()
-
 
 # Find a diagonal, any diagonal.
 a = 0
@@ -128,7 +109,3 @@ if len(left) < len(right):
 # This forms a geometric series
 # Repeat n times to triangulate.
 # Overall O(n^2)
-
-# This is more memory efficient than other method.
-# Other method relies on recursing on both sides, requiring a function stack for all calls.
-# This method works itteratively, requiring no more memory than the single function call.
