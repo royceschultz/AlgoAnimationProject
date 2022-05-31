@@ -8,10 +8,10 @@ np.random.seed(43)
 import matplotlib.pyplot as plt
 
 POLYGONS = json.load(open("polygons.json"))
-KEY = 'xl'
+KEY = 'medium'
 POINTS = POLYGONS[KEY]
 TIME_SHORT = 0.2
-VERBOSE = False
+VERBOSE = True
 
 # Manim Config
 config.max_files_cached = 512
@@ -130,8 +130,10 @@ def FindGoodSubPolygon(points, i, j):
     # Search the smaller side
     UpdateMessage('Pick the smaller side')
     good_sub_polygon, bad_sub_polygon = left, right
+    go_left = True
     if len(right) < len(left):
         good_sub_polygon, bad_sub_polygon = right, left
+        go_left = False
     # Animate polygon partition
     gsp_polygon = Polygon(*[x + [0] for x in good_sub_polygon])
     bsp_polygon = Polygon(*[x + [0] for x in bad_sub_polygon])
@@ -141,7 +143,22 @@ def FindGoodSubPolygon(points, i, j):
     
     UpdateMessage('Find the middle point.')
     SCENE.play(FadeOut(gsp_polygon)) # Clean up GSP animation
+
     middle_index = len(good_sub_polygon) // 2
+    # animate finding middle index
+    a, b = i, j
+    for i in range(middle_index):
+        a_dot = Dot(points[a] + [0], color=GREEN, radius=0.5, fill_opacity=0.3)
+        b_dot = Dot(points[b] + [0], color=GREEN, radius=0.5, fill_opacity=0.3)
+        SCENE.play(FadeIn(a_dot), FadeIn(b_dot))
+        SCENE.play(FadeOut(a_dot), FadeOut(b_dot))
+        if go_left:
+            a = (a + 1) % len(points)
+            b = (b - 1) % len(points)
+        else:
+            a = (a - 1) % len(points)
+            b = (b + 1) % len(points)
+
     middle_dot = Dot(good_sub_polygon[middle_index] + [0], color=GREEN, radius=0.5, fill_opacity=0.3)
     SCENE.play(FadeIn(middle_dot))
     SCENE.play(FadeOut(middle_dot))
