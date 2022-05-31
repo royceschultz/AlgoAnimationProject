@@ -2,15 +2,16 @@ from manim import *
 import numpy as np
 import json
 
-np.random.seed(42)
+np.random.seed(43)
 
 # DEBUG
 import matplotlib.pyplot as plt
 
 POLYGONS = json.load(open("polygons.json"))
-KEY = 'medium'
+KEY = 'xl'
 POINTS = POLYGONS[KEY]
 TIME_SHORT = 0.2
+VERBOSE = False
 
 # Manim Config
 config.max_files_cached = 512
@@ -25,6 +26,8 @@ def ClearMessage():
         messages = []
 
 def UpdateMessage(lines):
+    if not VERBOSE:
+        return
     global messages
     if type(lines) == str:
         lines = [lines]
@@ -57,44 +60,51 @@ def FindDiagonalFrom(point_idx, points):
 def IsDiagonal(a, b, points):
     diagonal = (points[a], points[b])
     # Check if the diagonal is on the interior of the polygon
-    edge1 = (points[a], points[(a + 1) % len(points)])
-    edge2 = (points[a], points[(a - 1) % len(points)])
+    edge_next = (points[a], points[(a + 1) % len(points)])
+    edge_prev = (points[a], points[(a - 1) % len(points)])
     EdgeVector = lambda s: np.subtract(s[1], s[0])
-    angle1 = CalculateAngle(EdgeVector(diagonal), EdgeVector(edge1))
-    angle2 = CalculateAngle(EdgeVector(diagonal), EdgeVector(edge2))
-    if angle1 * angle2 >= 0:
+    poly_angle = CalculateAngle(EdgeVector(edge_next), EdgeVector(edge_prev))
+    diagonal_angle = CalculateAngle(EdgeVector(edge_next), EdgeVector(diagonal))
+    if diagonal_angle > poly_angle:
         return False
     # Check if the diagonal intersects any of the lines
     for i in range(len(points)):
+        # If edge starts/ends at the diagonal, skip
         if i == a or i == b or i-1 == a or i-1 == b:
             continue
         edge = (points[i-1], points[i])
+        edge_line = Line(edge[0] + [0], edge[1] + [0], color=RED)
         if IsIntersect(edge, diagonal):
             return False
     return True
 
 def IsIntersect(line1, line2):
-    x1, y1 = line1[0]
-    x2, y2 = line1[1]
-    x3, y3 = line2[0]
-    x4, y4 = line2[1]
-    denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
-    if denom == 0:
+    # Parameters:
+    # line1, line2: Line segments like [(x1, y1), (x2, y2)]
+    # Returns: True if the lines intersect, else false
+    (x1, y1), (x2, y2) = line1
+    (x3, y3), (x4, y4) = line2
+    slope1 = (y2 - y1) / (x2 - x1)
+    slope2 = (y4 - y3) / (x4 - x3)
+    intercept1 = y1 - slope1 * x1
+    intercept2 = y3 - slope2 * x3
+    if slope1 == slope2: # Parallel lines
+        if intercept1 == intercept2:
+            return True
         return False
-    ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom
-    ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom
-    if ua >= 0 and ua <= 1 and ub >= 0 and ub <= 1:
-        return True
-    else:
-        return False
+    x_intersect = (intercept2 - intercept1) / (slope1 - slope2)
+    if x_intersect >= min(x1, x2) and x_intersect <= max(x1, x2):
+        if x_intersect >= min(x3, x4) and x_intersect <= max(x3, x4):
+            return True
+    return False
 
 def CalculateAngle(a, b):
-    # Returns angle between [-pi, pi]
+    # Returns clockwise angle between [0, 2 * pi]
     # a, b: vectors
     angle = np.arctan2(a[1], a[0]) - np.arctan2(b[1], b[0])
-    if angle > np.pi:
+    if angle > 2 * np.pi:
         angle -= 2 * np.pi
-    if angle < -np.pi:
+    if angle < 0:
         angle += 2 * np.pi
     return angle
 
@@ -146,8 +156,8 @@ def FindGoodSubPolygon(points, i, j):
             middle_index += 1
             d = FindDiagonalFrom(middle_index, good_sub_polygon)
         except:
-            middle_index -= 2
-            d = FindDiagonalFrom(middle_index, good_sub_polygon)
+            print(len(good_sub_polygon), len(bad_sub_polygon))
+            raise
     diagonal_line = Line(good_sub_polygon[middle_index] + [0], good_sub_polygon[d] + [0])
     SCENE.play(Create(diagonal_line))
     return good_sub_polygon, middle_index, d
@@ -181,7 +191,7 @@ def FindEar(points):
     while True:
         sub_polygon, a, b = FindGoodSubPolygon(sub_polygon, a, b)
         left, right = PartitionPoints(sub_polygon, a, b)
-        if min(len(left), len(right)) == 3:
+        if min(len(left), len(right)) <= 3:
             break
     good_sub_polygon, bad_sub_polygon = left, right
     if len(right) < len(left):
