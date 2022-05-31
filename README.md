@@ -3,7 +3,7 @@
 This project uses manim to render animations for triangulation algorithms.
 
 The Manim animation files include:
-* SmartEarClipping.py - A n^2 method for triangulating polygons
+* QuadraticTriangulation.py - A n^2 method for triangulating polygons
 * MakeMonotone.py - A nlog(n) method for decomposing polygons into monotone sub-polygons.
 
 To run:
