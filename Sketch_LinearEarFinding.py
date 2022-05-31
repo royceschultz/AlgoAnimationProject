@@ -1,12 +1,39 @@
+from manim import *
 import numpy as np
 import json
+
+np.random.seed(42)
 
 # DEBUG
 import matplotlib.pyplot as plt
 
 POLYGONS = json.load(open("polygons.json"))
-KEY = 'sharp'
+KEY = 'medium'
 POINTS = POLYGONS[KEY]
+TIME_SHORT = 0.2
+
+# Manim Config
+config.max_files_cached = 512
+config.output_file = f'LTEF_{KEY}.mp4'
+
+
+messages = []
+def ClearMessage():
+    global messages
+    if messages:
+        SCENE.play(*[FadeOut(x) for x in messages], runtime=TIME_SHORT)
+        messages = []
+
+def UpdateMessage(lines):
+    global messages
+    if type(lines) == str:
+        lines = [lines]
+    ClearMessage()
+    messages.append(Text(lines[0]).shift(2.5 * DOWN))
+    for i in range(1, len(lines)):
+        messages.append(Text(lines[i]).next_to(messages[-1], DOWN))
+    SCENE.play(*[Write(x) for x in messages], runtime=TIME_SHORT)
+    SCENE.wait(TIME_SHORT)
 
 # Assume a method to find diagonals in linear time
 # (Covered in other animations)
@@ -81,36 +108,87 @@ def PartitionPoints(points, i, j):
         i, j = j, i
     left = points[i:j+1]
     right = points[j:len(points)] + points[0:i+1]
+    print(len(points), len(left), len(right))
     return left, right
 
 def FindGoodSubPolygon(points, i, j):
     # Parameters:
     # points: list of points
     # i, j: Indices of a diagonal of a polygon.
+    global SCENE
     left, right = PartitionPoints(points, i, j)
     # Search the smaller side
-    sub_polygon = left
+    UpdateMessage('Pick the smaller side')
+    good_sub_polygon, bad_sub_polygon = left, right
     if len(right) < len(left):
-        sub_polygon = right
-    middle_index = len(sub_polygon) // 2
+        good_sub_polygon, bad_sub_polygon = right, left
+    # Animate polygon partition
+    gsp_polygon = Polygon(*[x + [0] for x in good_sub_polygon])
+    bsp_polygon = Polygon(*[x + [0] for x in bad_sub_polygon])
+    gsp_polygon.set_fill(GREEN, opacity=0.3)
+    bsp_polygon.set_fill(RED, opacity=0.3)
+    SCENE.play(FadeIn(gsp_polygon), FadeIn(bsp_polygon))
+    
+    UpdateMessage('Find the middle point.')
+    SCENE.play(FadeOut(gsp_polygon)) # Clean up GSP animation
+    middle_index = len(good_sub_polygon) // 2
+    middle_dot = Dot(good_sub_polygon[middle_index] + [0], color=GREEN, radius=0.5, fill_opacity=0.3)
+    SCENE.play(FadeIn(middle_dot))
+    SCENE.play(FadeOut(middle_dot))
+    UpdateMessage('Find a diagonal from the partition point.')
     try:
-        d = FindDiagonalFrom(middle_index, sub_polygon)
+        d = FindDiagonalFrom(middle_index, good_sub_polygon)
     except:
         # Is this necessary? I don't think so.
         # Pretty sure this implies middle_index is an ear.
         # Could exit early instead.
-        d = FindDiagonalFrom(middle_index + 1, points)
-    return sub_polygon, middle_index, d
+        try:
+            middle_index += 1
+            d = FindDiagonalFrom(middle_index, good_sub_polygon)
+        except:
+            middle_index -= 2
+            d = FindDiagonalFrom(middle_index, good_sub_polygon)
+    diagonal_line = Line(good_sub_polygon[middle_index] + [0], good_sub_polygon[d] + [0])
+    SCENE.play(Create(diagonal_line))
+    return good_sub_polygon, middle_index, d
 
 
-# Find a diagonal, any diagonal.
-a = 0
-try:
-    b = FindDiagonalFrom(a, POINTS)
-    # Possibly no diagonal exists from a
-except: # Try again, guaranteed to work
-    a = 1
-    b = FindDiagonalFrom(a, POINTS)
-sub_polygon = POINTS
-while len(sub_polygon) > 3:
-    sub_polygon, a, b = FindGoodSubPolygon(sub_polygon, a, b)
+# Manim Global Variables
+SCENE = None
+
+
+class LinearTimeEarFinding(Scene):
+    def construct(self):
+        global SCENE
+        SCENE = self
+        primary_polygon = Polygon(*[x + [0]  for x in POINTS], color=PURPLE)
+        self.add(primary_polygon)
+        FindEar(POINTS)
+
+def FindEar(points):
+    # Find a diagonal, any diagonal.
+    UpdateMessage('Find a diagonal in linear time.')
+    a = 0
+    try:
+        b = FindDiagonalFrom(a, POINTS)
+        # Possibly no diagonal exists from a
+    except: # Try again, guaranteed to work
+        a = 1
+        b = FindDiagonalFrom(a, POINTS)
+    diagonal_line = Line(points[a] + [0], points[b] + [0])
+    SCENE.play(Create(diagonal_line))
+    sub_polygon = POINTS
+    while True:
+        sub_polygon, a, b = FindGoodSubPolygon(sub_polygon, a, b)
+        left, right = PartitionPoints(sub_polygon, a, b)
+        if min(len(left), len(right)) == 3:
+            break
+    good_sub_polygon, bad_sub_polygon = left, right
+    if len(right) < len(left):
+        good_sub_polygon, bad_sub_polygon = right, left
+    gsp_polygon = Polygon(*[x + [0] for x in good_sub_polygon])
+    bsp_polygon = Polygon(*[x + [0] for x in bad_sub_polygon])
+    gsp_polygon.set_fill(GREEN, opacity=0.3)
+    bsp_polygon.set_fill(RED, opacity=0.3)
+    SCENE.play(FadeIn(gsp_polygon), FadeIn(bsp_polygon))
+    UpdateMessage('Found an Ear!')
